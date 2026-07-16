@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Инфокиоск</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <!-- логотип из getcontent (управляется show_logo); оставлен для совместимости со скриптами -->
+    <section id="logo"><img src="./img/logo.png" alt="logo" /></section>
+
+    <!-- ЭКРАН ОЖИДАНИЯ -->
+    <section id="waiting">
+      <!-- полноэкранные слайды: наполняются content.js из ЛОКАЛЬНОГО
+           кэша (см. kiosk_sync / фоновая синхронизация в src-tauri) -->
+      <section id="slider">
+        <ul>
+          <li><img src="./img/placeholder1.png" alt="" /></li>
+          <li><img src="./img/placeholder2.png" alt="" /></li>
+          <li><img src="./img/placeholder3.png" alt="" /></li>
+        </ul>
+      </section>
+
+      <!-- призыв + рамка-сканер внизу (указывает на физический сканер) -->
+      <section id="cta">
+        <div class="lead">Поднесите товар</div>
+        <div class="sub">штрихкодом к окошку сканера&nbsp;&mdash; узнайте цену</div>
+        <div class="scanbox">
+          <div class="bars">
+            <span class="h5"></span><span class="h2"></span><span class="h4"></span>
+            <span class="h1"></span><span class="h3"></span><span class="h2"></span>
+            <span class="h5"></span><span class="h1"></span><span class="h3"></span>
+            <span class="h4"></span><span class="h2"></span><span class="h5"></span>
+            <span class="h1"></span><span class="h3"></span>
+          </div>
+          <div class="scanline"></div>
+        </div>
+      </section>
+    </section>
+
+    <!-- ЭКРАН ТОВАРА -->
+    <section id="info" hidden>
+      <div class="pbrand">
+        <img src="./img/logo.png" alt="ИрсКом" />
+        <span class="pmeta">Проверка цен</span>
+      </div>
+
+      <section id="info-text">
+        <div class="eyebrow">Товар</div>
+        <div class="content">
+          <div class="title">&mdash;</div>
+        </div>
+      </section>
+
+      <section id="info-prices">
+        <div class="seal">
+          <span class="discount-percent">&minus;5%</span>
+          <em>выгода</em>
+        </div>
+
+        <div class="regular">
+          <span class="lbl">без карты</span>
+          <span class="price">
+            <span class="value">261</span><span class="value-after">00</span><i>&#8381;</i>
+          </span>
+        </div>
+
+        <div class="hero discounted-price">
+          <span class="value">248</span>
+          <span class="tail">
+            <span class="value-after">10</span>
+            <i>&#8381;</i>
+          </span>
+        </div>
+
+        <div class="card-label">Цена по карте ИрсКом</div>
+      </section>
+    </section>
+
+    <!-- НАСТРОЙКИ (F3) — без изменений по структуре -->
+    <section id="settings" hidden>
+      <form>
+        <h3>Настройки</h3>
+        <label>
+          <span>Файл настроек</span>
+          <span>
+            <button type="button" class="export">Экспорт</button>
+            <button type="button" class="import">Импорт</button>
+          </span>
+        </label>
+        <hr />
+        <label>
+          <span>API url для товаров</span>
+          <input type="text" name="api_url" />
+        </label>
+        <label>
+          <span>API url для контента</span>
+          <input type="text" name="api_url_2" />
+        </label>
+        <div class="columns-2">
+          <label><span>Логин</span><input type="text" name="login" class="half-length" /></label>
+          <label><span>Пароль</span><input type="text" name="password" class="half-length" /></label>
+        </div>
+        <hr />
+        <label>
+          <span><input type="checkbox" name="show_logo" /> Показать логотип вверху экрана</span>
+        </label>
+        <label>
+          <span>Интервал переключения изображений в слайдере (в секундах)</span>
+          <input type="text" name="slider_interval" class="half-length" />
+        </label>
+        <hr />
+        <div class="actions">
+          <button type="submit" class="save">Сохранить</button>
+          <button type="button" class="cancel">Закрыть</button>
+        </div>
+      </form>
+    </section>
+
+    <input id="code" />
+    <script src="./scripts/tauri-bridge.js"></script>
+    <script src="./scripts/utils.js"></script>
+    <script src="./scripts/settings.js"></script>
+    <script src="./scripts/slider.js"></script>
+    <script src="./scripts/script.js"></script>
+    <script src="./scripts/content.js"></script>
+  </body>
+</html>

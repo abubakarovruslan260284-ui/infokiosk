@@ -1,0 +1,7 @@
+/src-tauri/target
+/src-tauri/kiosk_sync/target
+/tools/kiosk-publisher-cli/target
+node_modules
+*.log
+content-cache/
+.staging-*

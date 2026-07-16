@@ -1,0 +1,12 @@
+[package]
+name = "kiosk_publish"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75"
+
+[[bin]]
+name = "kiosk_publish"
+path = "src/main.rs"
+
+[dependencies]
+kiosk_sync = { path = "../../src-tauri/kiosk_sync" }

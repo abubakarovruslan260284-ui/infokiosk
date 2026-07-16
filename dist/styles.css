@@ -1,0 +1,156 @@
+:root{
+  --ink:#245491;        /* фирменный синий ИрсКом */
+  --ink-deep:#143257;
+  --ink-night:#0b1b30;
+  --ink-soft:#5b7aa6;
+  --accent:#e73a7c;     /* фирменная магента */
+  --accent-deep:#c41f63;
+  --home:#13a394;       /* акцент ИрсХоум */
+  --mist:#eef3f9;
+  --line:#dde7f2;
+  --ink-ghost:rgba(36,84,145,.08);
+  --slider-speed:0.9s;
+  --f:"Montserrat","Segoe UI",Tahoma,Verdana,sans-serif;
+  --fb:"Manrope","Segoe UI",Tahoma,Verdana,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{padding:0;margin:0;height:100vh;width:100vw;overflow:hidden;
+  font-family:var(--fb);background:var(--ink-night);position:relative}
+img{display:block}
+[hidden],.hidden{display:none!important}
+
+#logo{display:none}                 /* служебный, заменён фирменной плашкой */
+#code{opacity:0;position:absolute;bottom:2vh;left:50%;transform:translateX(-50%);
+  width:60vw;padding:1vh;font-size:2.2vh;border:2px solid var(--ink);border-radius:1vh;text-align:center;z-index:30}
+
+#waiting,#info{position:absolute;inset:0}
+
+/* ===================== ЭКРАН ОЖИДАНИЯ ===================== */
+#waiting{background:linear-gradient(150deg,var(--ink-deep),var(--ink-night) 70%)}
+
+.brandpill{position:absolute;top:3.4vh;left:4vw;z-index:6;
+  display:flex;align-items:center;gap:2.2vw;
+  background:rgba(255,255,255,.95);backdrop-filter:blur(6px);
+  padding:1.4vh 3vw;border-radius:3vw;box-shadow:0 1.2vh 3vh rgba(0,0,0,.22)}
+.brandpill img{height:5vh;width:auto}
+.brandpill .sep{width:2px;height:5vh;background:var(--line)}
+.brandpill .home{font-family:var(--f);font-weight:900;color:var(--home);font-size:3.4vh}
+
+/* слайдер — во весь экран на фирменной подложке */
+#slider{position:absolute!important;top:3.5vh;left:3.5vw;right:3.5vw;bottom:27vh;
+  background:transparent!important;background-image:none!important;
+  display:block!important;overflow:hidden;border-radius:4.5vw;
+  box-shadow:0 3vh 7vh -2vh rgba(0,0,0,.45)}
+#slider ul{list-style:none;padding:0;margin:0;position:absolute;inset:0;
+  width:100%;height:100%;opacity:0;transition:opacity .5s}
+#waiting.animate #slider ul{opacity:1}
+#slider ul li{position:absolute;left:0;top:0;width:100%;height:100%;
+  display:flex;align-items:center;justify-content:center;background:#fff;
+  will-change:transform;transform:translate(-100vw,0)}
+
+@keyframes slide-enter{from{transform:translate(100vw,0)}to{transform:translate(0,0)}}
+@keyframes slide-exit{from{transform:translate(0,0)}to{transform:translate(-100vw,0)}}
+#slider ul li.enter{transform:translate(0,0);animation:slide-enter var(--slider-speed) cubic-bezier(.22,.61,.36,1)}
+#slider ul li.exit{transform:translate(-100vw,0);animation:slide-exit var(--slider-speed) cubic-bezier(.55,.06,.68,.19)}
+
+#slider ul li img,#slider ul li video{position:absolute;inset:0;width:100%;height:100%;
+  object-fit:contain;object-position:center;padding:4vh 4vw;box-sizing:border-box;
+  filter:drop-shadow(0 3vh 5vh rgba(0,0,0,.35))}
+/* лёгкое «дыхание» активного слайда (Ken Burns) */
+@keyframes ken{from{transform:scale(1.005)}to{transform:scale(1.06)}}
+#slider ul li.enter img{animation:ken 9s ease-out both}
+
+/* «говорящий» сканер + призыв */
+#cta{position:absolute;left:0;right:0;bottom:0;height:25vh;z-index:6;
+  display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:1vh;
+  padding:2.5vh 6vw 3vh;text-align:center;background:transparent}
+.scanbox{position:relative;width:32vw;max-width:210px;height:10vh;margin-top:auto;margin-bottom:1.6vh;border:.45vh solid rgba(255,255,255,.34);border-radius:2.6vh;background:rgba(255,255,255,.06);display:flex;align-items:center;justify-content:center;overflow:hidden}
+.bars{display:flex;align-items:center;gap:.7vw}
+.bars span{width:1.2vw;max-width:8px;background:#fff;border-radius:1px;opacity:.95}
+.bars .h1{height:4.4vh}.bars .h2{height:6.2vh}.bars .h3{height:3.4vh}.bars .h4{height:7vh}.bars .h5{height:5.2vh}
+.scanline{position:absolute;left:10%;right:10%;height:.4vh;border-radius:1vh;background:var(--accent);box-shadow:0 0 1.6vh .3vh rgba(231,58,124,.7);animation:scan 2.3s ease-in-out infinite}
+@keyframes scan{0%,100%{top:22%}50%{top:72%}}50%{top:80%}}
+#cta .lead{font-family:var(--f);font-weight:800;color:#fff;font-size:5.4vh;line-height:1.02}
+#cta .sub{font-family:var(--fb);font-weight:500;color:rgba(255,255,255,.72);font-size:2.6vh}
+
+/* ===================== ЭКРАН ТОВАРА ===================== */
+#info{background:radial-gradient(120% 90% at 80% -10%,#f7fbff,var(--mist) 55%,#e3ecf6);
+  display:flex;flex-direction:column;padding:14vh 6vw 5vh}
+
+.pbrand{position:absolute;top:3.4vh;left:0;right:0;z-index:6;
+  display:flex;align-items:center;justify-content:space-between;padding:0 6vw}
+.pbrand img{height:5vh}
+.pbrand .pmeta{font-family:var(--f);font-weight:700;color:var(--ink-soft);
+  font-size:2vh;letter-spacing:.18em;text-transform:uppercase}
+
+#info-text{display:flex;flex-direction:column;align-items:flex-start;text-align:left}
+#info-text .eyebrow{font-family:var(--f);font-weight:700;color:var(--accent);
+  font-size:2.4vh;letter-spacing:.2em;text-transform:uppercase;margin-bottom:1.6vh}
+#info-text .content{opacity:1;display:flex;flex-direction:column}
+#info-text .title{font-family:var(--f);font-weight:800;color:var(--ink-deep);
+  font-size:4.6vh;line-height:1.14;letter-spacing:-.01em;text-align:left}
+
+/* карточка цены */
+#info-prices{position:relative;margin-top:auto;background:#fff;border-radius:5vw;
+  box-shadow:0 4vh 9vh -3vh rgba(20,50,87,.3);padding:5vh 7vw;overflow:hidden}
+#info-prices::before{content:"";position:absolute;top:-9vh;right:-9vh;width:30vw;height:30vw;
+  border-radius:6vw;background:var(--ink-ghost);transform:rotate(18deg)}
+
+.seal{position:absolute;top:4vh;right:6vw;z-index:2;width:27vw;height:27vw;max-width:190px;max-height:190px;
+  border-radius:4vw;background:linear-gradient(150deg,var(--accent),var(--accent-deep));transform:rotate(9deg);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;
+  box-shadow:0 2.4vh 5vh -1vh rgba(231,58,124,.5)}
+.seal .discount-percent{font-family:var(--f);font-weight:900;font-size:5vw;line-height:.9}
+.seal em{font-family:var(--f);font-style:normal;font-weight:700;font-size:1.9vw;letter-spacing:.14em;
+  text-transform:uppercase;margin-top:.6vh}
+
+.regular{position:relative;z-index:1;display:flex;align-items:baseline;gap:2vw}
+.regular .lbl{font-family:var(--fb);font-weight:600;color:var(--ink-soft);font-size:2.6vh}
+.regular .price{position:relative;font-family:var(--f);font-weight:700;color:var(--ink-soft);font-size:5vh}
+.regular .price .value-after{font-size:2.6vh;vertical-align:super;margin-left:.3vw}
+.regular .price i{font-style:normal;margin-left:.4vw}
+.regular .price::after{content:"";position:absolute;left:-3%;right:-3%;top:48%;height:.4vh;
+  background:var(--accent);transform:rotate(-7deg)}
+
+.hero.discounted-price{position:relative;z-index:1;margin-top:2vh;display:flex;align-items:flex-start;gap:2vw}
+.hero .value{font-family:var(--f);font-weight:900;color:var(--accent);font-size:24vw;line-height:.82;
+  letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.hero .tail{display:flex;flex-direction:column;align-items:flex-start;padding-top:2.4vh;gap:.6vh}
+.hero .tail .value-after{font-family:var(--f);font-weight:800;color:var(--accent);font-size:6vw;line-height:1}
+.hero .tail i{font-style:normal;font-family:var(--f);font-weight:800;color:var(--ink);font-size:5.4vw;line-height:1}
+
+.card-label{position:relative;z-index:1;margin-top:3vh;font-family:var(--f);font-weight:800;
+  color:var(--ink);font-size:3.4vh;letter-spacing:.08em;text-transform:uppercase}
+
+/* появление карточки */
+@keyframes rise{from{opacity:0;transform:translateY(3vh)}to{opacity:1;transform:none}}
+@keyframes pop{from{opacity:0;transform:scale(.9)}60%{opacity:1;transform:scale(1.02)}to{transform:scale(1)}}
+@keyframes stamp{from{opacity:0;transform:rotate(9deg) scale(1.4)}to{opacity:1;transform:rotate(9deg) scale(1)}}
+#info.animate #info-text .eyebrow{animation:rise .5s .05s both}
+#info.animate #info-text .title{animation:rise .55s .12s both}
+#info.animate .regular{animation:rise .5s .22s both}
+#info.animate .hero{animation:pop .6s .28s both}
+#info.animate .card-label{animation:rise .5s .4s both}
+#info.animate .seal{animation:stamp .5s .46s both}
+
+/* ===================== НАСТРОЙКИ ===================== */
+#settings{box-sizing:border-box;position:absolute;inset:0;z-index:40;
+  background:rgba(20,50,87,.92);backdrop-filter:blur(4px);
+  display:flex;justify-content:center;align-items:center;flex-direction:column}
+#settings :not(input){user-select:none}
+#settings form{align-items:flex-start;display:flex;flex-direction:column;
+  background:#fff;border-radius:14px;padding:22px 26px;box-shadow:0 20px 60px rgba(0,0,0,.4);font-family:var(--fb)}
+#settings h3{margin:0 0 16px;font-family:var(--f);color:var(--ink-deep)}
+#settings label{display:flex;flex-direction:column;align-items:flex-start;margin-bottom:12px}
+#settings span{margin-bottom:6px;color:#36506f;font-size:14px}
+#settings input[type="text"]{width:600px;max-width:70vw;padding:8px 10px;border:1px solid var(--line);border-radius:8px}
+#settings input.half-length{width:220px}
+#settings .columns-2{display:flex;flex-direction:row;gap:16px}
+#settings .columns-2>*{flex:1}
+#settings .actions{margin-top:10px;display:flex;gap:10px}
+#settings button{padding:9px 16px;border-radius:8px;border:0;cursor:pointer;font-family:var(--fb);font-weight:600}
+#settings .save{background:var(--accent);color:#fff}
+#settings .cancel,#settings .export,#settings .import{background:var(--ink-ghost);color:var(--ink)}
+hr{inline-size:100%;block-size:1px;border:0;background:var(--line);margin:8px 0}
+
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}

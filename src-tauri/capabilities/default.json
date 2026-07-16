@@ -1,0 +1,12 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Права главного окна киоска",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-set-fullscreen",
+    "core:webview:allow-create-webview-window",
+    "shell:allow-open"
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "url_products": "http://192.168.0.14/UT_2017/hs/infokiosk",
+  "login": "АпГрейд",
+  "password": "7STREkoza7",
+  "content_source_path": "\\\\PUBLISHER-PC\\kiosk-content",
+  "sync_poll_secs": 20,
+  "slide_seconds": 6,
+  "show_logo": false
+}
