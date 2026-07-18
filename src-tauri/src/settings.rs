@@ -9,7 +9,9 @@ use std::path::{Path, PathBuf};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KioskSettings {
     pub url_products: String,
+    #[serde(default = "default_login")]
     pub login: String,
+    #[serde(default = "default_password")]
     pub password: String,
     #[serde(default = "default_content_source")]
     pub content_source_path: String,
@@ -22,10 +24,16 @@ pub struct KioskSettings {
 }
 
 fn default_content_source() -> String {
-    // По умолчанию — сетевой путь; на Baham это, например,
-    // \\PUBLISHER-PC\baham-content, на ИрсКом можно указать тот же
-    // путь, что раньше отдавал HTTP-сервис контента.
-    r"\\PUBLISHER-PC\kiosk-content".to_string()
+    // Общая сетевая папка с контентом (магазин ИрсКом). Для другого
+    // магазина/сети это поле просто меняется в settings.json на месте —
+    // приложение подхватит новый путь на следующем опросе.
+    r"\\wdmycloud\Public\InfoContent".to_string()
+}
+fn default_login() -> String {
+    "АпГрейд".to_string()
+}
+fn default_password() -> String {
+    "7STREkoza7".to_string()
 }
 fn default_poll_secs() -> u64 {
     20
@@ -38,8 +46,8 @@ impl Default for KioskSettings {
     fn default() -> Self {
         KioskSettings {
             url_products: "http://192.168.0.14/UT_2017/hs/infokiosk".to_string(),
-            login: String::new(),
-            password: String::new(),
+            login: default_login(),
+            password: default_password(),
             content_source_path: default_content_source(),
             sync_poll_secs: default_poll_secs(),
             slide_seconds: default_slide_seconds(),
