@@ -36,10 +36,12 @@ fn main() {
 
             let cache_root = exe_dir.join("content-cache");
             std::fs::create_dir_all(&cache_root).ok();
+            let log_path = exe_dir.join("sync.log");
 
             app.manage(AppState {
                 settings_path: settings_path.clone(),
                 cache_root: cache_root.clone(),
+                log_path: log_path.clone(),
                 cfg: cfg.clone(),
             });
 
@@ -49,12 +51,13 @@ fn main() {
             let sync_handle = handle.clone();
             let sync_cfg = cfg.clone();
             let sync_cache_root = cache_root.clone();
+            let sync_log_path = log_path.clone();
             std::thread::spawn(move || {
                 let rt = tokio::runtime::Builder::new_current_thread()
                     .enable_time()
                     .build()
                     .expect("не удалось создать tokio-раннтайм для фоновой синхронизации");
-                rt.block_on(sync_loop::run(sync_handle, sync_cfg, sync_cache_root));
+                rt.block_on(sync_loop::run(sync_handle, sync_cfg, sync_cache_root, sync_log_path));
             });
 
             // Полноэкранный киоск, без рамки/меню — как раньше.
@@ -71,6 +74,7 @@ fn main() {
             load_settings_dialog,
             list_active_slides,
             force_sync,
+            read_diagnostics,
             exit_fullscreen,
             toggle_devtools,
         ])
@@ -81,6 +85,7 @@ fn main() {
 pub struct AppState {
     pub settings_path: std::path::PathBuf,
     pub cache_root: std::path::PathBuf,
+    pub log_path: std::path::PathBuf,
     pub cfg: Arc<std::sync::Mutex<KioskSettings>>,
 }
 
@@ -111,6 +116,43 @@ fn force_sync(state: tauri::State<AppState>) -> Result<kiosk_sync::SyncReport, S
     let cfg = state.cfg.lock().unwrap().clone();
     let source = std::path::PathBuf::from(&cfg.content_source_path);
     kiosk_sync::sync_once(&source, &state.cache_root).map_err(|e| e.to_string())
+}
+
+#[derive(serde::Serialize)]
+pub struct Diagnostics {
+    app_version: String,
+    content_source_path: String,
+    settings_path: String,
+    cache_root: String,
+    slide_count: usize,
+    log_tail: String,
+}
+
+/// Всё, что нужно, чтобы разобраться "почему не работает", не гадая —
+/// открывается по F4 (см. diagnostics.js). Читает settings.json,
+/// содержимое активного кэша и последние строки sync.log напрямую с
+/// диска, так что показывает РЕАЛЬНОЕ текущее состояние, а не то, что
+/// когда-то было в памяти.
+#[tauri::command]
+fn read_diagnostics(app: tauri::AppHandle, state: tauri::State<AppState>) -> Diagnostics {
+    let cfg = state.cfg.lock().unwrap().clone();
+    let active = kiosk_sync::active_cache_dir(&state.cache_root);
+    let slide_count = slides::read_slides(&active).len();
+    let log_tail = std::fs::read_to_string(&state.log_path)
+        .map(|s| {
+            let lines: Vec<&str> = s.lines().rev().take(25).collect();
+            lines.into_iter().rev().collect::<Vec<_>>().join("\n")
+        })
+        .unwrap_or_else(|_| "(лог пока пуст — синхронизация ещё не запускалась)".to_string());
+
+    Diagnostics {
+        app_version: app.package_info().version.to_string(),
+        content_source_path: cfg.content_source_path,
+        settings_path: state.settings_path.display().to_string(),
+        cache_root: state.cache_root.display().to_string(),
+        slide_count,
+        log_tail,
+    }
 }
 
 /// Аналог старой кнопки «Экспорт»: сохранить текущие настройки в файл,

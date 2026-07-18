@@ -4,13 +4,14 @@
 // Два принципа, которые прямо отвечают на «чтобы не подтормаживало»:
 //   1) Все картинки/видео заранее ПОЛНОСТЬЮ загружаются в скрытые
 //      элементы и декодируются браузером ДО того, как их покажут.
-//      Показ — это просто смена класса/видимости уже готового узла,
-//      без построения разметки и без сетевых или файловых операций
-//      в момент показа.
-//   2) Обновление контента (когда «Издатель» опубликовал новое) НИКОГДА
-//      не подменяет то, что видно на экране прямо сейчас — оно готовит
-//      новый набор в фоне и подменяет DOM только в безопасный момент
-//      (когда открыт именно экран ожидания, а не карточка цены).
+//   2) Обновление контента НИКОГДА не подменяет то, что видно на экране
+//      прямо сейчас — подмена DOM только в безопасный момент (экран
+//      ожидания, а не карточка цены).
+//
+// Плюс: стартовая загрузка настойчива. Кэш на свежем киоске может быть
+// ещё пуст в момент открытия страницы (первая синхронизация не успела
+// завершиться) — поэтому не сдаёмся после одной неудачи, а пробуем
+// каждые несколько секунд, пока не получим реальные слайды хотя бы раз.
 
 const sliderListEl = document.querySelector("#slider ul");
 const invoke = window.__TAURI__.core.invoke;
@@ -19,6 +20,7 @@ const tauriEvent = window.__TAURI__.event;
 
 let pendingRefresh = false;
 
+/** @returns {Promise<boolean>} true, если реальные слайды из кэша были показаны */
 async function loadSlides(opts) {
   opts = opts || {};
   let slides;
@@ -26,14 +28,14 @@ async function loadSlides(opts) {
     slides = await invoke("list_active_slides");
   } catch (e) {
     console.warn("Не удалось получить список слайдов:", e);
-    return;
+    return false;
   }
-  if (!slides || slides.length === 0) return;
+  if (!slides || slides.length === 0) return false;
 
   const infoVisible = !infoEl.hasAttribute("hidden");
   if (infoVisible && !opts.force) {
     pendingRefresh = true;
-    return;
+    return true; // слайды ЕСТЬ, просто применим их чуть позже
   }
 
   const fragment = document.createDocumentFragment();
@@ -74,8 +76,8 @@ async function loadSlides(opts) {
 
   window.restartSlider && restartSlider();
   pendingRefresh = false;
-
   attachVideoAutoplay();
+  return true;
 }
 
 let videoObserver = null;
@@ -110,4 +112,15 @@ if (typeof origSwitchToWaiting === "function") {
   };
 }
 
-loadSlides({ force: true });
+// Настойчивая стартовая загрузка: пробуем сразу, и если не вышло —
+// повторяем раз в 5 секунд (до ~3.5 минут), пока не получится хотя бы раз.
+(async function retryUntilFirstSuccess() {
+  const ok = await loadSlides({ force: true });
+  if (ok) return;
+  let attempts = 0;
+  const timer = setInterval(async function () {
+    attempts++;
+    const success = await loadSlides({ force: true });
+    if (success || attempts > 40) clearInterval(timer);
+  }, 5000);
+})();
