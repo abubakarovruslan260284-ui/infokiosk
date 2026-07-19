@@ -41,6 +41,34 @@ img{display:block}
   background:transparent!important;background-image:none!important;
   display:block!important;overflow:hidden;border-radius:4.5vw;
   box-shadow:0 3vh 7vh -2vh rgba(0,0,0,.45)}
+
+/* ===== подсветка рамки (F3 -> "Подсветка рамки"): off / solid / rainbow =====
+   Реализация через вращающийся conic-gradient под маской — анимация
+   идёт только через transform/filter (compositor), это дёшево даже на
+   слабом железе: не требует пересчёта layout/paint на каждый кадр. */
+#slider-glow{
+  position:absolute;top:3.5vh;left:3.5vw;right:3.5vw;bottom:27vh;
+  border-radius:4.5vw;padding:.6vw;pointer-events:none;z-index:0;opacity:0;
+  transition:opacity .4s ease;
+}
+#slider-glow::before{
+  content:"";position:absolute;inset:0;border-radius:inherit;
+  background:conic-gradient(from 0deg,#ff2d55,#ff9500,#ffcc00,#34c759,#00c7be,#007aff,#af52de,#ff2d55);
+  -webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);
+  -webkit-mask-composite:xor;mask-composite:exclude;
+  filter:blur(.5vw) saturate(1.3);
+  animation:slider-glow-spin var(--glow-speed,6s) linear infinite;
+}
+#slider-glow.mode-rainbow{opacity:1}
+#slider-glow.mode-solid{opacity:1}
+#slider-glow.mode-solid::before{
+  background:conic-gradient(from 0deg,var(--glow-color,#e73a7c),var(--glow-color,#e73a7c));
+  animation:slider-glow-pulse calc(var(--glow-speed,6s) * .5) ease-in-out infinite;
+}
+@keyframes slider-glow-spin{to{transform:rotate(360deg)}}
+@keyframes slider-glow-pulse{0%,100%{opacity:.55}50%{opacity:1}}
+@media (prefers-reduced-motion:reduce){#slider-glow::before{animation:none}}
+
 #slider ul{list-style:none;padding:0;margin:0;position:absolute;inset:0;
   width:100%;height:100%;opacity:0;transition:opacity .5s}
 #waiting.animate #slider ul{opacity:1}
@@ -69,7 +97,7 @@ img{display:block}
 .bars span{width:1.2vw;max-width:8px;background:#fff;border-radius:1px;opacity:.95}
 .bars .h1{height:4.4vh}.bars .h2{height:6.2vh}.bars .h3{height:3.4vh}.bars .h4{height:7vh}.bars .h5{height:5.2vh}
 .scanline{position:absolute;left:10%;right:10%;height:.4vh;border-radius:1vh;background:var(--accent);box-shadow:0 0 1.6vh .3vh rgba(231,58,124,.7);animation:scan 2.3s ease-in-out infinite}
-@keyframes scan{0%,100%{top:22%}50%{top:72%}}50%{top:80%}}
+@keyframes scan{0%,100%{top:22%}50%{top:72%}}
 #cta .lead{font-family:var(--f);font-weight:800;color:#fff;font-size:5.4vh;line-height:1.02}
 #cta .sub{font-family:var(--fb);font-weight:500;color:rgba(255,255,255,.72);font-size:2.6vh}
 

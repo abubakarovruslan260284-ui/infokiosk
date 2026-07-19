@@ -12,6 +12,8 @@
 
     <!-- ЭКРАН ОЖИДАНИЯ -->
     <section id="waiting">
+      <!-- подсветка рамки (F3 → "Подсветка рамки"): off / solid / rainbow -->
+      <div id="slider-glow"></div>
       <!-- полноэкранные слайды: наполняются content.js из ЛОКАЛЬНОГО
            кэша (см. kiosk_sync / фоновая синхронизация в src-tauri) -->
       <section id="slider">
@@ -111,6 +113,15 @@
           <input type="text" name="slider_interval" class="half-length" />
         </label>
         <hr />
+        <label>
+          <span>Подсветка рамки вокруг картинок: off / solid / rainbow</span>
+          <input type="text" name="border_mode" class="half-length" placeholder="rainbow" />
+        </label>
+        <div class="columns-2">
+          <label><span>Цвет (для режима solid, HEX)</span><input type="text" name="border_color" class="half-length" placeholder="#e73a7c" /></label>
+          <label><span>Скорость переливания, сек за оборот</span><input type="text" name="border_speed" class="half-length" placeholder="6" /></label>
+        </div>
+        <hr />
         <div class="actions">
           <button type="submit" class="save">Сохранить</button>
           <button type="button" class="cancel">Закрыть</button>
@@ -122,6 +133,7 @@
     <script src="./scripts/tauri-bridge.js"></script>
     <script src="./scripts/utils.js"></script>
     <script src="./scripts/settings.js"></script>
+    <script src="./scripts/border-fx.js"></script>
     <script src="./scripts/slider.js"></script>
     <script src="./scripts/script.js"></script>
     <script src="./scripts/content.js"></script>

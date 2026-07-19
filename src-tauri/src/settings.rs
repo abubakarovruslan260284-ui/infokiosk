@@ -21,6 +21,14 @@ pub struct KioskSettings {
     pub slide_seconds: u64,
     #[serde(default)]
     pub show_logo: bool,
+    #[serde(default = "default_border_mode")]
+    pub border_mode: String, // "off" | "solid" | "rainbow"
+    #[serde(default = "default_border_color")]
+    pub border_color: String, // hex, напр. "#e73a7c" — для режима "solid"
+    #[serde(default = "default_border_intensity")]
+    pub border_intensity: f64, // 0.0..1.0 — яркость/сила свечения
+    #[serde(default = "default_border_speed")]
+    pub border_speed_sec: f64, // длительность одного цикла анимации, сек
 }
 
 fn default_content_source() -> String {
@@ -41,6 +49,18 @@ fn default_poll_secs() -> u64 {
 fn default_slide_seconds() -> u64 {
     6
 }
+fn default_border_mode() -> String {
+    "rainbow".to_string()
+}
+fn default_border_color() -> String {
+    "#e73a7c".to_string()
+}
+fn default_border_intensity() -> f64 {
+    0.7
+}
+fn default_border_speed() -> f64 {
+    6.0
+}
 
 impl Default for KioskSettings {
     fn default() -> Self {
@@ -52,6 +72,10 @@ impl Default for KioskSettings {
             sync_poll_secs: default_poll_secs(),
             slide_seconds: default_slide_seconds(),
             show_logo: false,
+            border_mode: default_border_mode(),
+            border_color: default_border_color(),
+            border_intensity: default_border_intensity(),
+            border_speed_sec: default_border_speed(),
         }
     }
 }

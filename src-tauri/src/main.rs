@@ -75,6 +75,7 @@ fn main() {
             list_active_slides,
             force_sync,
             read_diagnostics,
+            fetch_price,
             exit_fullscreen,
             toggle_devtools,
         ])
@@ -193,6 +194,23 @@ async fn load_settings_dialog(app: tauri::AppHandle) -> Result<serde_json::Value
             }
         }
     }
+}
+
+/// Запрос цены товара к HTTP-сервису 1С — выполняется на стороне Rust,
+/// а не из браузера. Причина: WebView2 (движок этого приложения на
+/// Windows) строго соблюдает CORS для запросов со страницы, а сервис 1С
+/// не рассчитан отвечать на такие запросы браузера (нет заголовков
+/// Access-Control-Allow-*). У серверных HTTP-запросов из Rust концепция
+/// CORS вообще не применяется — это ограничение только браузеров.
+#[tauri::command]
+fn fetch_price(url: String, auth_token: String) -> Result<serde_json::Value, String> {
+    let resp = ureq::get(&url)
+        .set("Authorization", &format!("Basic {auth_token}"))
+        .timeout(std::time::Duration::from_secs(6))
+        .call()
+        .map_err(|e| e.to_string())?;
+    let body = resp.into_string().map_err(|e| e.to_string())?;
+    serde_json::from_str(&body).map_err(|e| format!("не удалось разобрать ответ сервера как JSON: {e}"))
 }
 
 #[tauri::command]

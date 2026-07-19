@@ -42,11 +42,64 @@ fn main() {
             }
             println!("\nМанифест записан: {}", manifest_path.display());
             println!("Киоски, следящие за этой папкой, заберут изменения при следующем опросе.");
+
+            warn_about_skipped_files(&dir, &manifest);
         }
         Err(e) => {
             eprintln!("Ошибка при построении манифеста: {e}");
             std::process::exit(1);
         }
+    }
+}
+
+/// Инфокиоск показывает только то, что умеет декодировать браузерный
+/// движок (PNG/JPEG/GIF/WEBP/BMP/MP4/WEBM). Формат HEIC/HEIF (по
+/// умолчанию используется камерой iPhone) веб-браузеры не поддерживают
+/// вообще — такой файл не покажется молча. Поэтому явно предупреждаем,
+/// а не оставляем это в тишине: до этого именно так терялись фото.
+fn warn_about_skipped_files(dir: &PathBuf, manifest: &Manifest) {
+    let published: std::collections::HashSet<&str> =
+        manifest.files.iter().map(|f| f.name.as_str()).collect();
+
+    let mut heic_files = Vec::new();
+    let mut other_skipped = Vec::new();
+
+    if let Ok(entries) = std::fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if !path.is_file() {
+                continue;
+            }
+            let name = path.file_name().unwrap().to_string_lossy().to_string();
+            if name == "manifest.json" || published.contains(name.as_str()) {
+                continue;
+            }
+            let lower = name.to_lowercase();
+            if lower.ends_with(".heic") || lower.ends_with(".heif") {
+                heic_files.push(name);
+            } else if lower.ends_with(".mov") || lower.ends_with(".tiff") || lower.ends_with(".tif")
+                || lower.ends_with(".raw") || lower.ends_with(".psd") || lower.ends_with(".svg")
+            {
+                other_skipped.push(name);
+            }
+        }
+    }
+
+    if !heic_files.is_empty() {
+        println!("\n⚠ Не опубликовано ({} файлов) — формат HEIC/HEIF с iPhone браузер не умеет показывать:", heic_files.len());
+        for f in &heic_files {
+            println!("    - {f}");
+        }
+        println!("  Как исправить: на iPhone — Настройки → Камера → Форматы → «Наиболее совместимые»");
+        println!("  (тогда новые фото будут сразу в JPEG), либо откройте фото в приложении «Фото» на iPhone");
+        println!("  и через «Экспортировать» сохраните как JPEG перед копированием в эту папку.");
+    }
+    if !other_skipped.is_empty() {
+        println!("\n⚠ Не опубликовано ({} файлов) — неподдерживаемый формат:", other_skipped.len());
+        for f in &other_skipped {
+            println!("    - {f}");
+        }
+        println!("  Поддерживаются: PNG, JPG, GIF, WEBP, BMP (фото/картинки), MP4, WEBM (видео).");
     }
 }
 
