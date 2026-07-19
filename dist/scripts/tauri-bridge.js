@@ -1,19 +1,11 @@
-// Мост совместимости: даёт скриптам settings.js / script.js тот же
+﻿// Мост совместимости: даёт скриптам settings.js / script.js тот же
 // window.electronAPI, что был в Electron-версии, но за ним — вызовы
-// Tauri. Благодаря этому сами скрипты (та часть, что отвечает за
-// сканирование штрихкода и получение цены из 1С — «скелет») остаются
-// НЕ ТРОНУТЫМИ при переезде с Electron на Tauri.
+// Tauri. Скрипты сканирования/цены (скелет) остаются НЕ ТРОНУТЫМИ.
 (function () {
   const invoke = window.__TAURI__.core.invoke;
-
   window.electronAPI = {
     exitFullscreen: () => invoke("exit_fullscreen"),
     saveSettings: (data) => invoke("save_settings_dialog", { data: toRustSettings(data) }),
-    // Тихо сохранить настройки в РАБОЧИЙ settings.json приложения и сразу
-    // применить их к живому процессу (в т.ч. к фоновой синхронизации).
-    // Без этого поле «папка контента» и интервал слайдера, введённые в
-    // окне настроек (F3), не доходили до Rust — фоновый цикл продолжал
-    // читать старый путь, и контент из новой сетевой папки не появлялся.
     persistSettings: (data) => invoke("save_settings", { data: toRustSettings(data) }),
     loadSettings: () => invoke("load_settings_dialog"),
     settingsFromFile: async () => {
@@ -23,7 +15,6 @@
     getLocalSlides: () => invoke("list_active_slides"),
     forceSync: () => invoke("force_sync"),
   };
-
   function fromRustSettings(s) {
     if (!s) return s;
     return {
@@ -33,6 +24,13 @@
       password: s.password,
       show_logo: s.show_logo,
       slider_interval: s.slide_seconds,
+      // Поля подсветки рамки (F3) — раньше мост их не пробрасывал,
+      // поэтому при старте они не доходили до APP_SETTINGS и рамка
+      // всегда возвращалась к дефолту после перезапуска.
+      border_mode: s.border_mode,
+      border_color: s.border_color,
+      border_speed: s.border_speed_sec,
+      border_intensity: s.border_intensity,
     };
   }
   function toRustSettings(s) {
@@ -44,6 +42,12 @@
       sync_poll_secs: 20,
       slide_seconds: Number(s.slider_interval) || 6,
       show_logo: !!s.show_logo,
+      // Отправляем настройки рамки обратно в Rust, чтобы «Сохранить»
+      // их реально сохранял, а не сбрасывал.
+      border_mode: s.border_mode || "rainbow",
+      border_color: s.border_color || "#e73a7c",
+      border_speed_sec: Number(s.border_speed) || 6,
+      border_intensity: Number(s.border_intensity) != null && !isNaN(Number(s.border_intensity)) ? Number(s.border_intensity) : 0.7,
     };
   }
 })();

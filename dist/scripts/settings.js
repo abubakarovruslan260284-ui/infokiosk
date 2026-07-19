@@ -1,11 +1,11 @@
-/*** UTILS ***/
+﻿/*** UTILS ***/
 
 function applySettings() {
   localStorage.setItem("settings", JSON.stringify(APP_SETTINGS));
 
-  // Пробрасываем настройки в Rust (рабочий settings.json + живой процесс),
-  // чтобы путь к папке контента и интервал слайдера реально применялись к
-  // фоновой синхронизации, а не оставались только в localStorage.
+  // РџСЂРѕР±СЂР°СЃС‹РІР°РµРј РЅР°СЃС‚СЂРѕР№РєРё РІ Rust (СЂР°Р±РѕС‡РёР№ settings.json + Р¶РёРІРѕР№ РїСЂРѕС†РµСЃСЃ),
+  // С‡С‚РѕР±С‹ РїСѓС‚СЊ Рє РїР°РїРєРµ РєРѕРЅС‚РµРЅС‚Р° Рё РёРЅС‚РµСЂРІР°Р» СЃР»Р°Р№РґРµСЂР° СЂРµР°Р»СЊРЅРѕ РїСЂРёРјРµРЅСЏР»РёСЃСЊ Рє
+  // С„РѕРЅРѕРІРѕР№ СЃРёРЅС…СЂРѕРЅРёР·Р°С†РёРё, Р° РЅРµ РѕСЃС‚Р°РІР°Р»РёСЃСЊ С‚РѕР»СЊРєРѕ РІ localStorage.
   window.electronAPI &&
     window.electronAPI.persistSettings &&
     window.electronAPI.persistSettings({
@@ -15,6 +15,10 @@ function applySettings() {
       password: setting("password"),
       show_logo: setting("show_logo"),
       slider_interval: setting("slider_interval"),
+      border_mode: setting("border_mode"),
+      border_color: setting("border_color"),
+      border_speed: setting("border_speed"),
+      border_intensity: setting("border_intensity"),
     });
 
   initAuthToken();
@@ -34,6 +38,10 @@ function loadSettingsFromFileData(data) {
   APP_SETTINGS["hide_blue_rectangle"] = data?.hide_blue_rectangle ?? "";
   APP_SETTINGS["slider_interval"] = data?.slider_interval ?? "";
   APP_SETTINGS["slider_speed"] = data?.slider_speed ?? "";
+  APP_SETTINGS["border_mode"] = data?.border_mode ?? "";
+  APP_SETTINGS["border_color"] = data?.border_color ?? "";
+  APP_SETTINGS["border_speed"] = data?.border_speed ?? "";
+  APP_SETTINGS["border_intensity"] = data?.border_intensity ?? "";
   applySavedSettingsToForm();
   applySettings();
 }
@@ -59,7 +67,7 @@ function setting(name) {
       ).replace(/\/$/, "");
 
     case "login":
-      return APP_SETTINGS[name] || "АпГрейд";
+      return APP_SETTINGS[name] || "РђРїР“СЂРµР№Рґ";
 
     case "password":
       return APP_SETTINGS[name] || "";
@@ -82,10 +90,10 @@ function setting(name) {
     case "slider_speed":
       return toNumber(name) || 1;
 
-    // ── Настройки подсветки рамки (F3). Раньше для них не было веток в
-    //    setting(), поэтому форма при каждом открытии затирала их пустым
-    //    значением, а сохранение сбрасывало выбранный цвет/режим. Теперь
-    //    значения корректно читаются, валидируются и имеют дефолты.
+    // в”Ђв”Ђ РќР°СЃС‚СЂРѕР№РєРё РїРѕРґСЃРІРµС‚РєРё СЂР°РјРєРё (F3). Р Р°РЅСЊС€Рµ РґР»СЏ РЅРёС… РЅРµ Р±С‹Р»Рѕ РІРµС‚РѕРє РІ
+    //    setting(), РїРѕСЌС‚РѕРјСѓ С„РѕСЂРјР° РїСЂРё РєР°Р¶РґРѕРј РѕС‚РєСЂС‹С‚РёРё Р·Р°С‚РёСЂР°Р»Р° РёС… РїСѓСЃС‚С‹Рј
+    //    Р·РЅР°С‡РµРЅРёРµРј, Р° СЃРѕС…СЂР°РЅРµРЅРёРµ СЃР±СЂР°СЃС‹РІР°Р»Рѕ РІС‹Р±СЂР°РЅРЅС‹Р№ С†РІРµС‚/СЂРµР¶РёРј. РўРµРїРµСЂСЊ
+    //    Р·РЅР°С‡РµРЅРёСЏ РєРѕСЂСЂРµРєС‚РЅРѕ С‡РёС‚Р°СЋС‚СЃСЏ, РІР°Р»РёРґРёСЂСѓСЋС‚СЃСЏ Рё РёРјРµСЋС‚ РґРµС„РѕР»С‚С‹.
     case "border_mode": {
       const v = APP_SETTINGS[name];
       return ["off", "solid", "pulse", "flow", "rainbow"].includes(v) ? v : "rainbow";
@@ -117,7 +125,7 @@ function applySavedSettingsToForm() {
     if (input.type === "checkbox") {
       input.checked = setting(input.name);
     } else {
-      // text / number / color / range / select-one — всем подходит value
+      // text / number / color / range / select-one вЂ” РІСЃРµРј РїРѕРґС…РѕРґРёС‚ value
       input.value = setting(input.name);
     }
   }
@@ -158,8 +166,8 @@ window.electronAPI.settingsFromFile().then((response) => {
 
 APP_SETTINGS = settings || {};
 
-// Берём и <input>, и <select> — раньше выпадающие списки в форму не
-// попадали, поэтому выбор режима подсветки не сохранялся.
+// Р‘РµСЂС‘Рј Рё <input>, Рё <select> вЂ” СЂР°РЅСЊС€Рµ РІС‹РїР°РґР°СЋС‰РёРµ СЃРїРёСЃРєРё РІ С„РѕСЂРјСѓ РЅРµ
+// РїРѕРїР°РґР°Р»Рё, РїРѕСЌС‚РѕРјСѓ РІС‹Р±РѕСЂ СЂРµР¶РёРјР° РїРѕРґСЃРІРµС‚РєРё РЅРµ СЃРѕС…СЂР°РЅСЏР»СЃСЏ.
 const inputs = document.querySelectorAll("#settings input, #settings select");
 
 applySavedSettingsToForm();
@@ -222,7 +230,7 @@ document
     const data = await window.electronAPI.loadSettings();
     if (data === false) return;
     if (data === "error") {
-      alert("Ошибка при загрузке файла настроек");
+      alert("РћС€РёР±РєР° РїСЂРё Р·Р°РіСЂСѓР·РєРµ С„Р°Р№Р»Р° РЅР°СЃС‚СЂРѕРµРє");
       return;
     }
 
@@ -232,3 +240,5 @@ document
 document.querySelector("#settings").addEventListener("dblclick", (e) => {
   e.stopPropagation();
 });
+
+
