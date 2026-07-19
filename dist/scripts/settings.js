@@ -3,6 +3,20 @@
 function applySettings() {
   localStorage.setItem("settings", JSON.stringify(APP_SETTINGS));
 
+  // Пробрасываем настройки в Rust (рабочий settings.json + живой процесс),
+  // чтобы путь к папке контента и интервал слайдера реально применялись к
+  // фоновой синхронизации, а не оставались только в localStorage.
+  window.electronAPI &&
+    window.electronAPI.persistSettings &&
+    window.electronAPI.persistSettings({
+      url_products: setting("api_url"),
+      url_promo: setting("api_url_2"),
+      login: setting("login"),
+      password: setting("password"),
+      show_logo: setting("show_logo"),
+      slider_interval: setting("slider_interval"),
+    });
+
   initAuthToken();
   window.reInitContentUpdate && reInitContentUpdate();
   window.setUISettings && setUISettings();
@@ -68,6 +82,31 @@ function setting(name) {
     case "slider_speed":
       return toNumber(name) || 1;
 
+    // ── Настройки подсветки рамки (F3). Раньше для них не было веток в
+    //    setting(), поэтому форма при каждом открытии затирала их пустым
+    //    значением, а сохранение сбрасывало выбранный цвет/режим. Теперь
+    //    значения корректно читаются, валидируются и имеют дефолты.
+    case "border_mode": {
+      const v = APP_SETTINGS[name];
+      return v === "off" || v === "solid" || v === "rainbow" ? v : "rainbow";
+    }
+
+    case "border_color": {
+      const v = APP_SETTINGS[name];
+      return /^#[0-9a-fA-F]{6}$/.test(v) ? v : "#e73a7c";
+    }
+
+    case "border_speed": {
+      const v = toNumber(name);
+      return isNaN(v) || v <= 0 ? 6 : v;
+    }
+
+    case "border_intensity": {
+      let v = toNumber(name);
+      if (isNaN(v)) v = 0.7;
+      return Math.min(1, Math.max(0, v));
+    }
+
     default:
       return "";
   }
@@ -75,10 +114,11 @@ function setting(name) {
 
 function applySavedSettingsToForm() {
   for (const input of inputs) {
-    if (input.type === "text") {
-      input.value = setting(input.name);
-    } else if (input.type === "checkbox") {
+    if (input.type === "checkbox") {
       input.checked = setting(input.name);
+    } else {
+      // text / number / color / range / select-one — всем подходит value
+      input.value = setting(input.name);
     }
   }
 }
@@ -118,7 +158,9 @@ window.electronAPI.settingsFromFile().then((response) => {
 
 APP_SETTINGS = settings || {};
 
-const inputs = document.querySelectorAll("#settings input");
+// Берём и <input>, и <select> — раньше выпадающие списки в форму не
+// попадали, поэтому выбор режима подсветки не сохранялся.
+const inputs = document.querySelectorAll("#settings input, #settings select");
 
 applySavedSettingsToForm();
 
@@ -147,11 +189,11 @@ document
     event.preventDefault();
 
     for (const input of inputs) {
-      const type = input.getAttribute("type");
-      if (type === "text") {
-        APP_SETTINGS[input.name] = input.value;
-      } else if (type === "checkbox") {
+      if (input.type === "checkbox") {
         APP_SETTINGS[input.name] = input.checked;
+      } else {
+        // text / number / color / range / select-one
+        APP_SETTINGS[input.name] = input.value;
       }
     }
 

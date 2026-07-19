@@ -30,16 +30,101 @@ pub struct SyncReport {
     pub duration_ms: u128,
 }
 
-/// Читает манифест из общей сетевой папки (источник у издателя).
-pub fn read_remote_manifest(source_dir: &Path) -> Result<Manifest, SyncError> {
-    let manifest_path = source_dir.join(MANIFEST_FILE);
-    if !manifest_path.exists() {
+/// Медиафайл ли это (по расширению). Дублирует список из manifest.rs
+/// намеренно: сюда он нужен для дешёвого «слепка» папки без манифеста,
+/// и держать его локально проще, чем расширять публичный интерфейс
+/// модуля манифеста ради одного места.
+fn is_media_file(name: &str) -> bool {
+    let lower = name.to_lowercase();
+    [".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".mp4", ".webm"]
+        .iter()
+        .any(|ext| lower.ends_with(ext))
+}
+
+/// Дешёвый «слепок версии» папки, в которой НЕТ manifest.json: считаем
+/// хэш от списка (имя, размер, время изменения) всех медиафайлов, БЕЗ
+/// чтения их содержимого. Это позволяет часто (на каждом опросе) дёшево
+/// понять, изменилось ли что-то в общей папке.
+///
+/// Возвращает `SourceUnavailable`, если папку нельзя прочитать ИЛИ в ней
+/// нет ни одного медиафайла — так рабочий кэш не будет случайно очищен,
+/// если сетевая папка на мгновение отвалилась/примонтировалась пустой.
+fn directory_signature(source_dir: &Path) -> Result<String, SyncError> {
+    use sha2::{Digest, Sha256};
+
+    let read_dir = fs::read_dir(source_dir).map_err(|e| {
+        SyncError::SourceUnavailable(format!("{}: {e}", source_dir.display()))
+    })?;
+
+    let mut items: Vec<(String, u64, u128)> = Vec::new();
+    for entry in read_dir {
+        let entry = entry.map_err(|e| SyncError::Io(source_dir.display().to_string(), e))?;
+        let path = entry.path();
+        if !path.is_file() {
+            continue;
+        }
+        let name = path.file_name().unwrap().to_string_lossy().to_string();
+        if !is_media_file(&name) {
+            continue;
+        }
+        let meta = entry.metadata().map_err(|e| SyncError::Io(path.display().to_string(), e))?;
+        let size = meta.len();
+        let mtime = meta
+            .modified()
+            .ok()
+            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+            .map(|d| d.as_millis())
+            .unwrap_or(0);
+        items.push((name, size, mtime));
+    }
+
+    if items.is_empty() {
         return Err(SyncError::SourceUnavailable(format!(
-            "{} не найден (папка недоступна или пуста)",
-            manifest_path.display()
+            "в папке источника нет ни {MANIFEST_FILE}, ни медиафайлов: {}",
+            source_dir.display()
         )));
     }
-    Manifest::load(&manifest_path)
+
+    items.sort();
+    let mut hasher = Sha256::new();
+    for (name, size, mtime) in &items {
+        hasher.update(name.as_bytes());
+        hasher.update(&size.to_le_bytes());
+        hasher.update(&mtime.to_le_bytes());
+        hasher.update(b"\n");
+    }
+    Ok(format!("auto-{}", &hex::encode(hasher.finalize())[..16]))
+}
+
+/// Дешёвая «версия» источника для частого опроса — БЕЗ хэширования
+/// содержимого файлов. Если в папке есть manifest.json — берём его поле
+/// `version` (файл маленький). Если манифеста нет — считаем слепок папки.
+fn remote_version(source_dir: &Path) -> Result<String, SyncError> {
+    let manifest_path = source_dir.join(MANIFEST_FILE);
+    if manifest_path.exists() {
+        return Ok(Manifest::load(&manifest_path)?.version);
+    }
+    directory_signature(source_dir)
+}
+
+/// Читает манифест из общей сетевой папки (источник у издателя).
+///
+/// Если `manifest.json` в папке есть — используем его (обычный путь,
+/// когда контент публикуется через kiosk-publisher-cli).
+///
+/// Если манифеста НЕТ — строим его на лету из содержимого папки. Это
+/// делает рабочим самый частый на практике сценарий: сотрудник магазина
+/// просто копирует картинки/видео в общую папку, не запуская никакой
+/// «Издатель». Версия такого синтезированного манифеста совпадает со
+/// слепком папки (`directory_signature`), поэтому после синхронизации
+/// повторные опросы не считают, что «версия снова изменилась».
+pub fn read_remote_manifest(source_dir: &Path) -> Result<Manifest, SyncError> {
+    let manifest_path = source_dir.join(MANIFEST_FILE);
+    if manifest_path.exists() {
+        return Manifest::load(&manifest_path);
+    }
+    let version = directory_signature(source_dir)?;
+    Manifest::from_directory(source_dir, version)
 }
 
 /// Читает манифест локального кэша (или пустой, если кэша ещё нет).
@@ -51,9 +136,9 @@ pub fn read_local_manifest(cache_dir: &Path) -> Manifest {
 /// Быстрая проверка: изменилась ли версия. Это единственное, что стоит
 /// делать при частом опросе (раз в 15–30 сек) — она не трогает файлы.
 pub fn version_changed(source_dir: &Path, cache_root: &Path) -> Result<bool, SyncError> {
-    let remote = read_remote_manifest(source_dir)?;
+    let remote_ver = remote_version(source_dir)?;
     let local = read_local_manifest(&active_cache_dir(cache_root));
-    Ok(remote.version != local.version)
+    Ok(remote_ver != local.version)
 }
 
 /// Полный цикл синхронизации: сравнить манифесты, докачать изменённое
@@ -360,6 +445,85 @@ mod tests {
         let manifest = Manifest::from_directory(&source, "v2").unwrap();
         manifest.save(&source.join(MANIFEST_FILE)).unwrap();
         assert!(version_changed(&source, &cache).unwrap());
+
+        cleanup(&tmp);
+    }
+
+    // ---- НОВОЕ: синхронизация папки БЕЗ manifest.json ----
+
+    #[test]
+    fn syncs_folder_without_manifest() {
+        // Самый частый на практике сценарий: в общую папку просто
+        // накидали картинок/видео, без запуска «Издателя» и без
+        // manifest.json. Контент всё равно должен доехать до кэша.
+        let tmp = tempdir();
+        let source = tmp.join("source");
+        let cache = tmp.join("cache");
+        fs::create_dir_all(&source).unwrap();
+        fs::write(source.join("01.png"), b"AAAA").unwrap();
+        fs::write(source.join("02.jpg"), b"BBBB").unwrap();
+        fs::write(source.join("readme.txt"), b"not media").unwrap();
+
+        assert!(version_changed(&source, &cache).unwrap(), "кэша ещё нет — считаем, что версия изменилась");
+
+        let report = sync_once(&source, &cache).unwrap();
+        assert!(report.did_swap);
+        assert_eq!(sorted(report.fetched.clone()), vec!["01.png", "02.jpg"], "не-медиа файлы игнорируются");
+
+        let active = active_cache_dir(&cache);
+        assert_eq!(fs::read(active.join("01.png")).unwrap(), b"AAAA");
+        assert_eq!(fs::read(active.join("02.jpg")).unwrap(), b"BBBB");
+        assert!(!active.join("readme.txt").exists());
+
+        // повторный опрос — ничего не менялось, работы быть не должно
+        assert!(!version_changed(&source, &cache).unwrap(), "слепок папки не изменился — версия та же");
+        let again = sync_once(&source, &cache).unwrap();
+        assert!(!again.did_swap, "без изменений в папке повторная синхронизация не нужна");
+
+        cleanup(&tmp);
+    }
+
+    #[test]
+    fn adding_file_to_manifestless_folder_is_detected() {
+        let tmp = tempdir();
+        let source = tmp.join("source");
+        let cache = tmp.join("cache");
+        fs::create_dir_all(&source).unwrap();
+        fs::write(source.join("01.png"), b"AAAA").unwrap();
+        sync_once(&source, &cache).unwrap();
+        assert!(!version_changed(&source, &cache).unwrap());
+
+        // добавили новый файл в папку — слепок папки изменился
+        fs::write(source.join("02.png"), b"CCCC").unwrap();
+        assert!(version_changed(&source, &cache).unwrap(), "новый файл в папке = новая версия");
+
+        let report = sync_once(&source, &cache).unwrap();
+        assert!(report.did_swap);
+        let active = active_cache_dir(&cache);
+        assert_eq!(fs::read(active.join("02.png")).unwrap(), b"CCCC");
+        assert!(active.join("01.png").exists());
+
+        cleanup(&tmp);
+    }
+
+    #[test]
+    fn empty_folder_without_manifest_is_unavailable() {
+        // Пустая (или только что примонтированная пустой) папка не должна
+        // приводить к очистке рабочего кэша — это трактуется как
+        // «источник недоступен», а не «контента больше нет».
+        let tmp = tempdir();
+        let source = tmp.join("source");
+        let cache = tmp.join("cache");
+        fs::create_dir_all(&source).unwrap();
+
+        assert!(matches!(
+            version_changed(&source, &cache),
+            Err(SyncError::SourceUnavailable(_))
+        ));
+        assert!(matches!(
+            sync_once(&source, &cache),
+            Err(SyncError::SourceUnavailable(_))
+        ));
 
         cleanup(&tmp);
     }

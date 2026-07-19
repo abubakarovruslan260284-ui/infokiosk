@@ -80,7 +80,7 @@
       </section>
     </section>
 
-    <!-- НАСТРОЙКИ (F3) — без изменений по структуре -->
+    <!-- НАСТРОЙКИ (F3) -->
     <section id="settings" hidden>
       <form>
         <h3>Настройки</h3>
@@ -97,8 +97,8 @@
           <input type="text" name="api_url" />
         </label>
         <label>
-          <span>API url для контента</span>
-          <input type="text" name="api_url_2" />
+          <span>Папка с контентом (сетевая или локальная)</span>
+          <input type="text" name="api_url_2" placeholder="\\wdmycloud\Public\InfoContent" />
         </label>
         <div class="columns-2">
           <label><span>Логин</span><input type="text" name="login" class="half-length" /></label>
@@ -114,13 +114,21 @@
         </label>
         <hr />
         <label>
-          <span>Подсветка рамки вокруг картинок: off / solid / rainbow</span>
-          <input type="text" name="border_mode" class="half-length" placeholder="rainbow" />
+          <span>Подсветка рамки вокруг картинок</span>
+          <select name="border_mode" class="half-length">
+            <option value="off">Выключена</option>
+            <option value="solid">Один цвет</option>
+            <option value="rainbow">Радуга (перелив)</option>
+          </select>
         </label>
         <div class="columns-2">
-          <label><span>Цвет (для режима solid, HEX)</span><input type="text" name="border_color" class="half-length" placeholder="#e73a7c" /></label>
-          <label><span>Скорость переливания, сек за оборот</span><input type="text" name="border_speed" class="half-length" placeholder="6" /></label>
+          <label><span>Цвет рамки (для режима «Один цвет»)</span><input type="color" name="border_color" class="half-length" /></label>
+          <label><span>Скорость перелива, сек за цикл</span><input type="number" name="border_speed" class="half-length" min="1" max="60" step="0.5" /></label>
         </div>
+        <label>
+          <span>Интенсивность свечения</span>
+          <input type="range" name="border_intensity" class="half-length" min="0" max="1" step="0.05" />
+        </label>
         <hr />
         <div class="actions">
           <button type="submit" class="save">Сохранить</button>

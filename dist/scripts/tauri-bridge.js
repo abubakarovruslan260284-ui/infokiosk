@@ -9,6 +9,12 @@
   window.electronAPI = {
     exitFullscreen: () => invoke("exit_fullscreen"),
     saveSettings: (data) => invoke("save_settings_dialog", { data: toRustSettings(data) }),
+    // Тихо сохранить настройки в РАБОЧИЙ settings.json приложения и сразу
+    // применить их к живому процессу (в т.ч. к фоновой синхронизации).
+    // Без этого поле «папка контента» и интервал слайдера, введённые в
+    // окне настроек (F3), не доходили до Rust — фоновый цикл продолжал
+    // читать старый путь, и контент из новой сетевой папки не появлялся.
+    persistSettings: (data) => invoke("save_settings", { data: toRustSettings(data) }),
     loadSettings: () => invoke("load_settings_dialog"),
     settingsFromFile: async () => {
       const data = await invoke("get_settings");
