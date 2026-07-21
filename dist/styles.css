@@ -43,21 +43,20 @@ img{display:block}
   box-shadow:0 3vh 7vh -2vh rgba(0,0,0,.45)}
 
 /* ===== подсветка рамки (F3 -> "Подсветка рамки"): off / solid / rainbow =====
-   По просьбе заказчика — красится вся тёмно-синяя подложка экрана
-   ожидания целиком (а не тонкая полоска вокруг слайдера). Слой
-   растянут на весь #waiting, слайдер и призыв со сканером лежат
-   поверх него (z-index) и подложку не перекрывают. Анимация идёт
-   через transform/filter (compositor) — дёшево даже на слабом железе. */
+   Красится вся тёмно-синяя подложка экрана ожидания целиком (слайдер
+   и призыв со сканером лежат поверх неё и её не перекрывают).
+   Анимация — только filter:hue-rotate() на статичном слое, без
+   transform/blur: это самый дешёвый по ресурсам вариант, важно для
+   слабых старых ПК (нетбуки на Atom и т.п.). */
 #slider-glow{
   position:absolute;inset:0;overflow:hidden;
   pointer-events:none;z-index:0;opacity:0;
   transition:opacity .4s ease;
 }
 #slider-glow::before{
-  content:"";position:absolute;top:-20%;left:-20%;right:-20%;bottom:-20%;
+  content:"";position:absolute;inset:0;
   background:conic-gradient(from 0deg,#ff2d55,#ff9500,#ffcc00,#34c759,#00c7be,#007aff,#af52de,#ff2d55);
-  filter:blur(1vw) saturate(1.3);
-  animation:slider-glow-spin var(--glow-speed,6s) linear infinite;
+  animation:slider-glow-hue var(--glow-speed,6s) linear infinite;
 }
 /* Реальную непрозрачность задаёт border-fx.js (inline opacity =
    «Интенсивность»); эти классы лишь включают нужный эффект. */
@@ -81,12 +80,8 @@ img{display:block}
   background:var(--glow-color,#e73a7c);
   animation:slider-glow-hue var(--glow-speed,6s) linear infinite;
 }
-@keyframes slider-glow-spin{to{transform:rotate(360deg)}}
 @keyframes slider-glow-pulse{0%,100%{opacity:.5}50%{opacity:1}}
-@keyframes slider-glow-hue{
-  from{filter:blur(.5vw) saturate(1.4) hue-rotate(0deg)}
-  to{filter:blur(.5vw) saturate(1.4) hue-rotate(360deg)}
-}
+@keyframes slider-glow-hue{from{filter:hue-rotate(0deg)}to{filter:hue-rotate(360deg)}}
 @media (prefers-reduced-motion:reduce){#slider-glow::before{animation:none}}
 
 #slider ul{list-style:none;padding:0;margin:0;position:absolute;inset:0;
