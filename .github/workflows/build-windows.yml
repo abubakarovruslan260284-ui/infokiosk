@@ -61,6 +61,20 @@ jobs:
           New-Item -ItemType Directory -Force -Path $dest | Out-Null
           expand webview2-fixed.cab -F:* $dest
 
+      - name: ДИАГНОСТИКА — кто просит toml_datetime новой версии
+        # Временный шаг для расследования: печатает в лог, какая именно
+        # деталь требует новую версию toml_datetime, несмотря на явное
+        # закрепление старой. Ничего не ломает и не мешает следующему
+        # шагу — только выводит информацию. Можно будет убрать, когда
+        # найдём и почини́м настоящую причину.
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          cd src-tauri
+          cargo tree -i toml_datetime -e normal,build,dev
+          Write-Host "---"
+          cargo tree -i toml_edit -e normal,build,dev
+
       - name: Собрать инфокиоск (.exe/.msi/.nsis)
         run: tauri build
         working-directory: .

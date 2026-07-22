@@ -1,2 +1,0 @@
-cd infokiosk-tauri
-claude
