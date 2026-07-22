@@ -62,18 +62,21 @@ jobs:
           expand webview2-fixed.cab -F:* $dest
 
       - name: ДИАГНОСТИКА — кто просит toml_datetime новой версии
-        # Временный шаг для расследования: печатает в лог, какая именно
-        # деталь требует новую версию toml_datetime, несмотря на явное
-        # закрепление старой. Ничего не ломает и не мешает следующему
-        # шагу — только выводит информацию. Можно будет убрать, когда
-        # найдём и почини́м настоящую причину.
+        # Временный шаг для расследования. Старый cargo (1.77.2) не
+        # может даже посмотреть на пакет с edition2024 — падает точно
+        # так же, как и сама сборка, поэтому ставим рядом ВРЕМЕННО
+        # современный cargo (не трогая основной, закреплённый 1.77.2 —
+        # он не участвует в реальной сборке) и смотрим им, кто именно
+        # просит новую версию. Ничего не ломает и не мешает следующему
+        # шагу. Можно будет убрать, когда найдём и почини́м причину.
         shell: pwsh
         continue-on-error: true
         run: |
+          rustup toolchain install stable --profile minimal --no-self-update
           cd src-tauri
-          cargo tree -i toml_datetime -e normal,build,dev
+          cargo +stable tree -i toml_datetime -e normal,build,dev
           Write-Host "---"
-          cargo tree -i toml_edit -e normal,build,dev
+          cargo +stable tree -i toml_edit -e normal,build,dev
 
       - name: Собрать инфокиоск (.exe/.msi/.nsis)
         run: tauri build
