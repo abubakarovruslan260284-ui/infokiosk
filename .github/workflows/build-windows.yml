@@ -61,22 +61,41 @@ jobs:
           New-Item -ItemType Directory -Force -Path $dest | Out-Null
           expand webview2-fixed.cab -F:* $dest
 
-      - name: ДИАГНОСТИКА — кто просит toml_datetime новой версии
-        # Временный шаг для расследования. Старый cargo (1.77.2) не
-        # может даже посмотреть на пакет с edition2024 — падает точно
-        # так же, как и сама сборка, поэтому ставим рядом ВРЕМЕННО
-        # современный cargo (не трогая основной, закреплённый 1.77.2 —
-        # он не участвует в реальной сборке) и смотрим им, кто именно
-        # просит новую версию. Ничего не ломает и не мешает следующему
-        # шагу. Можно будет убрать, когда найдём и почини́м причину.
+      - name: ДИАГНОСТИКА — кто просит новые версии мелких пакетов
+        # Временный шаг для расследования будущих похожих проблем.
+        # Раньше эта диагностика сама падала: команда "cargo tree -i
+        # <имя>" требует, чтобы в проекте была РОВНО ОДНА версия этого
+        # пакета, а у нас как раз одновременно две версии одного пакета
+        # (наша закреплённая старая + чья-то новая) — именно поэтому
+        # команда отказывалась работать и выдавала свою же ошибку.
+        # Обходим это: берём ПОЛНЫЙ граф зависимостей через "cargo
+        # metadata" (он версии не уточняет) и сами в нём ищем, кто
+        # требует "лишнюю" версию. Современный cargo ставим рядом
+        # ВРЕМЕННО, не трогая основной закреплённый 1.77.2 — он не
+        # участвует в реальной сборке. Ничего не ломает и не мешает
+        # следующему шагу. Можно будет убрать, когда полностью
+        # разберёмся со всеми пакетами.
         shell: pwsh
         continue-on-error: true
         run: |
           rustup toolchain install stable --profile minimal --no-self-update
           cd src-tauri
-          cargo +stable tree -i toml_datetime -e normal,build,dev
-          Write-Host "---"
-          cargo +stable tree -i toml_edit -e normal,build,dev
+          $meta = cargo +stable metadata --format-version 1 | ConvertFrom-Json
+          foreach ($targetName in @("toml_datetime", "toml_edit", "getrandom", "jobserver")) {
+            Write-Host "===== $targetName ====="
+            $targetPkgs = $meta.packages | Where-Object { $_.name -eq $targetName }
+            foreach ($pkg in $targetPkgs) {
+              Write-Host "--- $($pkg.name) $($pkg.version) ---"
+              $dependents = $meta.resolve.nodes | Where-Object { $_.dependencies -contains $pkg.id }
+              if ($dependents) {
+                foreach ($dep in $dependents) {
+                  Write-Host "  требуется: $($dep.id)"
+                }
+              } else {
+                Write-Host "  (прямых зависимых узлов не найдено)"
+              }
+            }
+          }
 
       - name: Собрать инфокиоск (.exe/.msi/.nsis)
         run: tauri build

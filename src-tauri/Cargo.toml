@@ -94,6 +94,8 @@ version = "=0.3.4"
 version = "=0.11.15"
 [dependencies.zeroize]
 version = "=1.8.2"
+[dependencies.jobserver]
+version = "=0.1.34"
 
 [profile.release]
 panic = "abort"
