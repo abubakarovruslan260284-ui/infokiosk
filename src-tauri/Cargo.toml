@@ -10,19 +10,45 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 tauri = { version = "2", features = [] }
-tauri-plugin-shell = "2"
-tauri-plugin-dialog = "2"
+# Закреплено ниже последней версии — начиная с tauri-plugin-fs 2.5.1
+# (подтягивается через dialog) сборка требует toml 1.0, а он, как и
+# ряд других мелких пакетов ниже, с определённой версии просит более
+# новый Cargo/Rust, чем закреплённый у нас 1.77.2 (ради Windows 7/8/8.1
+# на киосках). См. общий комментарий про "мелкие пакеты" ниже.
+tauri-plugin-shell = "=2.3.5"
+tauri-plugin-dialog = "=2.7.0"
+tauri-plugin-fs = "=2.5.0"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["rt-multi-thread", "time", "macros"] }
 ureq = { version = "2", default-features = false }
 
-# Явно закреплено ниже последней версии: свежие выпуски "time" (0.3.42+)
-# требуют более новый Cargo/Rust, чем 1.77.2 (см. rust-toolchain.toml —
-# закреплено ради поддержки Windows 7/8/8.1 на киосках), иначе сборка
-# падает с ошибкой "feature `edition2024` is required". "time" тянется
-# транзитивно через tauri (пакет cookie), сами мы её не используем.
+# ===== Закреплённые версии мелких вспомогательных пакетов =====
+# Мы явно не используем их напрямую — они тянутся транзитивно через
+# tauri и его плагины. Их новые версии просят более новый Cargo/Rust,
+# чем закреплённый у нас 1.77.2 (нужен ради Windows 7/8/8.1 на
+# киосках) — иначе сборка падает с ошибкой вида "feature `edition2024`
+# is required". Ниже — последние версии каждого пакета, которые ещё
+# совместимы с 1.77.2.
 time = "=0.3.41"
+toml = "=0.9.8"
+toml_writer = "=1.0.7"
+toml_parser = "=1.0.10"
+serde_spanned = "=1.0.4"
+embed-resource = "=3.0.8"
+tauri-winres = "=0.3.5"
+proc-macro-crate = "=2.0.2"
+idna_adapter = "=1.1.0"
+indexmap = "=2.11.4"
+hashbrown = "=0.16.1"
+windows-core = "=0.61.2"
+uuid = "=1.20.0"
+plist = "=1.7.4"
+reqwest = "=0.13.3"
+cargo_metadata = "=0.19.0"
+dlopen2 = "=0.8.0"
+derive_more = "=2.0.0"
+serde_with = "=3.15.0"
 
 # наш проверенный движок синхронизации (см. kiosk_sync/ — 13 тестов,
 # включая эмуляцию сети/повреждённой докачки/атомарной подмены)
