@@ -100,6 +100,8 @@ version = "=0.1.34"
 version = "=0.4.1"
 [dependencies.rustls-platform-verifier]
 version = "=0.6.2"
+[dependencies.windows-registry]
+version = "=0.5.3"
 
 # Примечание про proc-macro-crate: пакет num_enum_derive (тянется
 # транзитивно) допускает у себя версии от 1 до 3 включительно, и Cargo

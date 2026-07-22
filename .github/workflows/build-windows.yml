@@ -129,6 +129,7 @@ jobs:
             "serde_spanned"    = "1.0.4"
             "proc-macro-crate" = "2.0.2"
             "rustls-platform-verifier" = "0.6.2"
+            "windows-registry" = "0.5.3"
           }
           $lockText = Get-Content "Cargo.lock" -Raw
           $pkgPattern = [regex]'(?ms)^\[\[package\]\]\r?\nname = "([^"]+)"\r?\nversion = "([^"]+)"'
