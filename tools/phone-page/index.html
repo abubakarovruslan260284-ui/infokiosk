@@ -84,7 +84,7 @@
   <div class="msg" id="msg"></div>
 
 <script>
-  var KEY = <?= JSON.stringify(accessKey) ?>;
+  var KEY = <?!= JSON.stringify(accessKey) ?>;
   var codeEl = document.getElementById('code');
   var videoInput = document.getElementById('video');
   var labelInput = document.getElementById('label');
