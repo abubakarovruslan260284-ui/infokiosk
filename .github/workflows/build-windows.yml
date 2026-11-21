@@ -80,81 +80,25 @@ jobs:
           }
           Write-Host "OK: встроенный браузер на месте — $exe"
 
-      - name: Подобрать версии всех пакетов под старый Rust (системно)
-        # ГЛАВНЫЙ шаг вместо ловли пакетов по одному. У современного
-        # Cargo есть встроенный режим: при выборе версий каждого пакета
-        # учитывать, какой минимальный Rust этот пакет требует, и не
-        # брать те, что новее нашего (у нас в Cargo.toml заявлен
-        # rust-version = "1.77"). Старый Cargo 1.77.2 такого режима ещё
-        # не имеет, поэтому список версий составляет ВРЕМЕННО
-        # установленный современный Cargo (в самой сборке он не
-        # участвует), а собирает потом по этому списку старый.
-        # Это разом закрывает ВСЮ категорию ошибок "package X cannot be
-        # built because it requires rustc 1.85" — для всех пакетов
-        # сразу, включая те, что ещё не всплывали.
+      - name: Версии пакетов — из закреплённого Cargo.lock
+        # Все версии пакетов киоска закреплены в src-tauri/Cargo.lock
+        # (подобраны под Rust 1.77.2 ради Windows 7 и проверены). Новые
+        # версии, которые авторы пакетов выпускают каждый день, сборку
+        # больше не ломают: без явного решения ничего не обновляется.
+        # Если Cargo.lock вдруг нет — подбираем заново на дату последней
+        # проверенной сборки (а не «на сегодня»).
         shell: pwsh
         run: |
           rustup toolchain install stable --profile minimal --no-self-update
           cd src-tauri
-          Remove-Item -Force Cargo.lock -ErrorAction SilentlyContinue
-          $env:CARGO_RESOLVER_INCOMPATIBLE_RUST_VERSIONS = "fallback"
-          cmd /c "cargo +stable generate-lockfile > ..\ci-logs\resolve.log 2>&1"
-          Get-Content ..\ci-logs\resolve.log
-          # Старый Cargo 1.77.2 понимает только формат №3 этого файла,
-          # современный записывает №4 — разница только в номере,
-          # содержимое для наших пакетов одинаковое.
-          (Get-Content Cargo.lock -Raw) -replace 'version = 4', 'version = 3' | Set-Content Cargo.lock -NoNewline
-
-      - name: Подстраховка — проверить и добить известных нарушителей
-        # Прошлый шаг подбирает версии автоматически для всех пакетов,
-        # у которых честно указано, какой Rust им нужен. Этот шаг —
-        # страховка для уже пойманных нами вручную нарушителей: если
-        # какой-то из них всё-таки проскочил новой версией, понижаем
-        # его точечно и печатаем итоговую проверку OK / НЕ ТА ВЕРСИЯ.
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = "Continue"
-          cd src-tauri
-          $desired = @{
-            "toml_datetime"    = "0.7.5"
-            "toml_edit"        = "0.20.2"
-            "toml"             = "0.9.8"
-            "toml_writer"      = "1.0.7"
-            "toml_parser"      = "1.0.10"
-            "serde_spanned"    = "1.0.4"
-            "proc-macro-crate" = "2.0.2"
-            "rustls-platform-verifier" = "0.6.2"
-            "windows-registry" = "0.5.3"
-            "quinn-proto" = "0.11.14"
-            "cargo-platform" = "0.1.8"
-            "hyper-rustls" = "0.27.7"
-            "unicode-segmentation" = "1.12.0"
-            "open" = "5.3.2"
-          }
-          $lockText = Get-Content "Cargo.lock" -Raw
-          $pkgPattern = [regex]'(?ms)^\[\[package\]\]\r?\nname = "([^"]+)"\r?\nversion = "([^"]+)"'
-          $anyFailed = $false
-          foreach ($m in $pkgPattern.Matches($lockText)) {
-            $pkgName = $m.Groups[1].Value
-            $pkgVer = $m.Groups[2].Value
-            if ($desired.ContainsKey($pkgName) -and $pkgVer -ne $desired[$pkgName]) {
-              Write-Host "Понижаю $pkgName с $pkgVer до $($desired[$pkgName])"
-              cargo update -p "${pkgName}:${pkgVer}" --precise $desired[$pkgName]
-              if ($LASTEXITCODE -ne 0) {
-                Write-Host "!!! НЕ ПОЛУЧИЛОСЬ понизить $pkgName до $($desired[$pkgName]) (код $LASTEXITCODE) — см. текст ошибки выше !!!"
-                $anyFailed = $true
-              }
-            }
-          }
-          Write-Host "===== Проверка после понижения ====="
-          $afterText = Get-Content "Cargo.lock" -Raw
-          foreach ($m in $pkgPattern.Matches($afterText)) {
-            $pkgName = $m.Groups[1].Value
-            $pkgVer = $m.Groups[2].Value
-            if ($desired.ContainsKey($pkgName)) {
-              $mark = if ($pkgVer -eq $desired[$pkgName]) { "OK" } else { "!!! ВСЁ ЕЩЁ НЕ ТА ВЕРСИЯ !!!" }
-              Write-Host "$pkgName = $pkgVer (нужно $($desired[$pkgName])) $mark"
-            }
+          if (Test-Path Cargo.lock) {
+            Write-Host "Cargo.lock закреплён в репозитории — используем его как есть"
+          } else {
+            $env:RUSTC_BOOTSTRAP = "1"
+            $env:CARGO_RESOLVER_INCOMPATIBLE_RUST_VERSIONS = "fallback"
+            cmd /c "cargo +stable generate-lockfile -Zunstable-options --publish-time 2026-07-23T06:00:00Z > ..\ci-logs\resolve.log 2>&1"
+            Get-Content ..\ci-logs\resolve.log
+            (Get-Content Cargo.lock -Raw) -replace 'version = 4', 'version = 3' | Set-Content Cargo.lock -NoNewline
           }
 
       - name: Собрать инфокиоск (.exe/.msi/.nsis)
