@@ -116,9 +116,21 @@ img{display:block}
 #cta .lead{font-family:var(--f);font-weight:800;color:#fff;font-size:5.4vh;line-height:1.02}
 #cta .sub{font-family:var(--fb);font-weight:500;color:rgba(255,255,255,.72);font-size:2.6vh}
 
-#cta .picker-hint{font-family:var(--f);font-weight:700;color:#fff;font-size:2.4vh;
-  background:var(--accent);padding:.8vh 3vw;border-radius:3vh;margin-top:.4vh;
-  box-shadow:0 1vh 2.4vh -1vh rgba(231,58,124,.7)}
+/* кнопка подбора на экране ожидания (только киоск в режиме "picker") */
+/* на киоске подбора карусель чуть короче — под ней место для кнопки */
+#waiting.picker-mode #slider{bottom:36vh}
+#cta .picker-btn{position:absolute;left:0;right:0;bottom:calc(100% + 2.2vh);margin:0 auto;width:max-content;
+  overflow:hidden;border:0;cursor:pointer;z-index:7;
+  font-family:var(--f);font-weight:800;color:#fff;font-size:3vh;letter-spacing:.01em;
+  padding:1.6vh 7vw;border-radius:5vh;background:linear-gradient(135deg,var(--accent),var(--accent-deep));
+  box-shadow:0 1.4vh 3.4vh -1vh rgba(231,58,124,.75);animation:pb-pulse 2.4s ease-in-out infinite}
+#cta .picker-btn:active{transform:scale(.97)}
+#cta .picker-btn .pb-spark{position:absolute;top:0;bottom:0;width:30%;left:-40%;
+  background:linear-gradient(100deg,transparent,rgba(255,255,255,.55),transparent);
+  animation:pb-spark 3.2s ease-in-out infinite}
+@keyframes pb-pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.04)}}
+@keyframes pb-spark{0%,55%{left:-40%}100%{left:120%}}
+
 
 /* ===================== КАРТОЧКА ТОВАРА В КАРУСЕЛИ =====================
    Фото + название в две строки + цена по карте. Рисуется здесь, а не
@@ -129,6 +141,8 @@ img{display:block}
 #slider ul li.card-slide .cs-photo{position:relative;flex:1 1 auto;min-height:0}
 #slider ul li.card-slide .cs-photo img{position:absolute;inset:0;width:100%;height:100%;
   object-fit:contain;padding:3vh 4vw 1vh;filter:none}
+#slider ul li.card-slide .cs-photo video{position:absolute;inset:0;width:100%;height:100%;
+  object-fit:contain;padding:3vh 4vw 1vh;filter:none;background:transparent}
 #slider ul li.card-slide.enter .cs-photo img{animation:ken 9s ease-out both}
 #slider ul li.card-slide .cs-info{flex:0 0 auto;padding:2.2vh 6vw 3.4vh;
   background:linear-gradient(180deg,rgba(238,243,249,0),var(--mist) 22%);
@@ -143,7 +157,7 @@ img{display:block}
 .cs-tail i{font-style:normal;font-family:var(--f);font-weight:800;color:var(--ink);font-size:4vh;line-height:1}
 .cs-label{font-family:var(--f);font-weight:800;color:var(--ink);font-size:2.2vh;letter-spacing:.08em;text-transform:uppercase}
 
-/* ===================== ПОДБОРКА ПО ЦЕНЕ ===================== */
+/* ===================== ПОДБОР ПО ЦЕНЕ ===================== */
 #picker{position:absolute;inset:0;z-index:20;display:flex;flex-direction:column;
   background:radial-gradient(120% 90% at 80% -10%,#f7fbff,var(--mist) 55%,#e3ecf6);
   padding:3.4vh 5vw 3vh;font-family:var(--fb);user-select:none}
@@ -151,22 +165,55 @@ img{display:block}
 .pk-head{display:flex;align-items:center;justify-content:space-between}
 .pk-head img{height:5vh}
 .pk-title{font-family:var(--f);font-weight:700;color:var(--ink-soft);font-size:2vh;letter-spacing:.18em;text-transform:uppercase}
-.pk-foot{margin-top:auto;padding-top:2vh;text-align:center;color:var(--ink-soft);font-size:2.2vh;font-weight:600}
+.pk-foot{margin-top:4vh;text-align:center;color:var(--ink-soft);font-size:2.2vh;font-weight:600}
 
+/* 1. выбор суммы */
 .pk-choose{display:flex;flex-direction:column;flex:1;justify-content:center}
 .pk-ask{font-family:var(--f);font-weight:800;color:var(--ink-deep);font-size:4.6vh;line-height:1.12;margin:0 0 4vh}
 .pk-ranges{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:2.4vh 4vw}
 .pk-range{display:flex;flex-direction:column;align-items:flex-start;gap:.8vh;
   padding:3.6vh 3.4vw;border:0;border-radius:4vw;background:#fff;cursor:pointer;text-align:left;
-  box-shadow:0 2vh 5vh -2vh rgba(20,50,87,.35);font-family:var(--f);
-  transition:transform .12s ease}
+  box-shadow:0 2vh 5vh -2vh rgba(20,50,87,.35);font-family:var(--f);transition:transform .12s ease}
 .pk-range:active{transform:scale(.97)}
 .pk-r-label{font-weight:900;color:var(--accent);font-size:min(3.6vh,6.2vw);line-height:1;white-space:nowrap}
 .pk-r-count{font-weight:600;color:var(--ink-soft);font-size:2.2vh}
 .pk-range:disabled{opacity:.45;box-shadow:none}
 .pk-range:disabled .pk-r-label{color:var(--ink-soft)}
+#picker.animate .pk-choose{animation:rise .4s both}
 
-.pk-range-label{font-family:var(--f);font-weight:900;color:var(--accent);font-size:6vh;line-height:1;margin:3vh 0 2.4vh}
+.pk-range-label{font-family:var(--f);font-weight:900;color:var(--accent);font-size:6vh;line-height:1;margin:3vh 0 1.6vh}
+
+/* 2. «сборка» подборки — тёмная «техно»-сцена, контрастная для съёмки */
+.pk-gen{position:absolute;inset:0;display:flex;flex-direction:column;padding:12vh 6vw 5vh;
+  background:radial-gradient(120% 80% at 50% 0%,#1d3f6e,var(--ink-night) 70%);color:#fff;animation:fade .35s both}
+.pk-gen .pk-range-label{margin-top:0}
+.pk-gen-title{font-family:var(--f);font-weight:800;font-size:3.6vh;color:#fff;margin-bottom:2.6vh}
+.pk-mosaic{display:grid;grid-template-columns:repeat(6,1fr);gap:1vw;margin-bottom:3vh}
+.pk-m{aspect-ratio:1;border-radius:1.6vw;overflow:hidden;background:rgba(255,255,255,.08);
+  animation:pop .4s both;transition:opacity .5s ease,transform .5s ease,box-shadow .5s ease}
+.pk-m img{width:100%;height:100%;object-fit:cover;background:#fff}
+.pk-m.flip{animation:mflip .32s ease}
+.pk-m.drop{opacity:.12;transform:scale(.86)}
+.pk-m.keep{transform:scale(1.06);box-shadow:0 0 0 .4vh var(--accent),0 0 2.6vh .4vh rgba(231,58,124,.65);z-index:1}
+@keyframes mflip{from{transform:rotateY(90deg)}to{transform:rotateY(0)}}
+.pk-steps{display:flex;flex-direction:column;gap:1.5vh;margin-top:auto}
+.pk-step{display:flex;align-items:center;gap:3vw;font-size:2.5vh;font-weight:600;color:rgba(255,255,255,.35);transition:color .3s}
+.pk-step.run,.pk-step.ok{color:#fff}
+.pk-s-ico{flex:0 0 auto;width:3vh;height:3vh;border-radius:50%;border:.35vh solid rgba(255,255,255,.25)}
+.pk-step.run .pk-s-ico{border-color:var(--accent);border-right-color:transparent;animation:spin .7s linear infinite}
+.pk-step.ok .pk-s-ico{border-color:#2fd38a;background:#2fd38a;position:relative}
+.pk-step.ok .pk-s-ico::after{content:"";position:absolute;left:28%;top:16%;width:28%;height:48%;
+  border:solid #fff;border-width:0 .4vh .4vh 0;transform:rotate(45deg)}
+@keyframes spin{to{transform:rotate(360deg)}}
+.pk-progress{position:relative;margin-top:3vh;height:1.4vh;border-radius:1vh;background:rgba(255,255,255,.12)}
+.pk-progress i{position:absolute;left:0;top:0;bottom:0;width:0;border-radius:1vh;
+  background:linear-gradient(90deg,var(--accent),#ff8fb8);box-shadow:0 0 2vh rgba(231,58,124,.8)}
+.pk-progress span{position:absolute;right:0;top:-4.2vh;font-family:var(--f);font-weight:900;font-size:3vh;color:#fff;
+  font-variant-numeric:tabular-nums}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+
+/* 3. готовый коллаж */
+.pk-done{font-family:var(--f);font-weight:800;color:var(--ink-deep);font-size:3.4vh;margin-bottom:2.4vh}
 .pk-grid-wrap,.pk-single-wrap{display:flex;flex-direction:column;flex:1;min-height:0}
 .pk-grid{display:grid;gap:2vh 3vw;flex:1;min-height:0;align-content:start}
 .pk-grid.cols-2{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
@@ -180,17 +227,17 @@ img{display:block}
   font-size:1.8vh;line-height:1.2;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.4em}
 .pk-grid.cols-2 .pk-tile .pk-name{font-size:2.2vh}
 
+/* 4. по одному */
 .pk-single{flex:1;min-height:0;display:flex}
 .pk-big{flex:1;background:#fff;border-radius:5vw;overflow:hidden;display:flex;flex-direction:column;
   box-shadow:0 4vh 9vh -3vh rgba(20,50,87,.3);animation:rise .45s both}
 .pk-big .pk-photo{flex:1;min-height:0;position:relative}
-.pk-big .pk-photo img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;padding:3vh 4vw}
+.pk-big .pk-photo img,.pk-big .pk-photo video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;padding:3vh 4vw}
 .pk-big .pk-name{margin:2vh 6vw 4vh;font-family:var(--f);font-weight:800;color:var(--ink-deep);font-size:4vh;line-height:1.16;
   display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .pk-dots{display:flex;justify-content:center;gap:1.2vw;margin-top:2vh}
 .pk-dots i{width:1.2vh;height:1.2vh;border-radius:50%;background:var(--line)}
 .pk-dots i.on{background:var(--accent)}
-#picker.animate .pk-choose{animation:rise .4s both}
 
 /* ===================== ЭКРАН ТОВАРА ===================== */
 #info{background:radial-gradient(120% 90% at 80% -10%,#f7fbff,var(--mist) 55%,#e3ecf6);

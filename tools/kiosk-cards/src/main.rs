@@ -20,6 +20,7 @@ mod names;
 mod onec;
 mod publish;
 mod store;
+mod video;
 
 use std::time::Duration;
 
@@ -115,6 +116,10 @@ fn main() {
                 "=== служба карточек запущена: снимки из «{}», карточки в «{}» ===",
                 app.cfg.inbox_dir, app.cfg.output_dir
             ));
+            match video::ffmpeg_version(&app.cfg.ffmpeg()) {
+                Some(v) => app.log(&format!("ролики: {v}")),
+                None => app.log("ВНИМАНИЕ: ffmpeg не найден — ролики обрабатываться не будут (фото — будут). Положите ffmpeg.exe рядом со службой."),
+            }
             let poll = Duration::from_secs(app.cfg.poll_seconds.max(5));
             loop {
                 app.tick();

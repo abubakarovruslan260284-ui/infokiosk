@@ -118,18 +118,24 @@ pub fn publish(store: &Store, photos_dir: &Path, out: &Path, cache: &mut HashCac
         return Err(format!("общая папка недоступна: {}", out.display()));
     }
     let public = PublicCards::from_store(store, now_human);
-    let wanted: HashSet<&str> = public.cards.iter().map(|c| c.photo.as_str()).collect();
-
-    // 1) Фото видимых карточек: докладываем новые/изменившиеся.
-    let mut copied = 0;
+    let mut wanted: HashSet<&str> = HashSet::new();
     for c in &public.cards {
-        let src = photos_dir.join(&c.photo);
-        let dst = out.join(&c.photo);
+        wanted.insert(c.photo.as_str());
+        if let Some(v) = &c.video {
+            wanted.insert(v.as_str());
+        }
+    }
+
+    // 1) Фото и ролики видимых карточек: докладываем новые/изменившиеся.
+    let mut copied = 0;
+    for name in &wanted {
+        let src = photos_dir.join(name);
+        let dst = out.join(name);
         if !src.exists() {
             continue;
         }
         let same = match (fs::metadata(&src), fs::metadata(&dst)) {
-            (Ok(a), Ok(b)) => a.len() == b.len() && kiosk_sync::manifest::hash_file(&src).ok() == cache_hash_of(cache, &dst, &c.photo),
+            (Ok(a), Ok(b)) => a.len() == b.len() && kiosk_sync::manifest::hash_file(&src).ok() == cache_hash_of(cache, &dst, name),
             _ => false,
         };
         if !same {
@@ -145,7 +151,8 @@ pub fn publish(store: &Store, photos_dir: &Path, out: &Path, cache: &mut HashCac
     for e in fs::read_dir(out).map_err(|e| e.to_string())? {
         let e = e.map_err(|e| e.to_string())?;
         let name = e.file_name().to_string_lossy().to_string();
-        let ours = name.starts_with("card_") && name.to_lowercase().ends_with(".jpg");
+        let lower = name.to_lowercase();
+        let ours = name.starts_with("card_") && (lower.ends_with(".jpg") || lower.ends_with(".mp4"));
         let leftover = name.ends_with(".part") || name.ends_with(".tmp");
         if (ours && !wanted.contains(name.as_str())) || leftover {
             if fs::remove_file(e.path()).is_ok() && ours {
@@ -201,7 +208,7 @@ mod tests {
     fn card(code: &str, stock: Option<f64>) -> Card {
         Card {
             code: code.into(), name: format!("Товар {code}"), characteristic: "".into(), price: 100.0, discounted_price: 95.0,
-            discount_percent: 5.0, stock, group: None, photo: crate::store::photo_name(code), found_in_1c: true,
+            discount_percent: 5.0, stock, group: None, photo: crate::store::photo_name(code), video: None, found_in_1c: true,
             created: "t".into(), updated: "t".into(), checked: "t".into(),
         }
     }

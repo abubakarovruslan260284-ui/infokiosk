@@ -33,6 +33,20 @@ pub struct Config {
     /// распознан и совпал с именем файла.
     #[serde(default = "d_true")]
     pub require_label_match: bool,
+    /// Путь к ffmpeg.exe (перекодирует ролики с айфона в H.264, который
+    /// понимают все киоски, включая Windows 7). Пусто — ffmpeg.exe рядом
+    /// со службой.
+    #[serde(default)]
+    pub ffmpeg_path: String,
+    /// Размер ролика по длинной стороне, пикселей (меньше — легче слабым киоскам).
+    #[serde(default = "d_vside")]
+    pub video_max_side: u32,
+    /// Длина ролика в карточке, секунд (лишнее обрезается).
+    #[serde(default = "d_vsec")]
+    pub video_seconds: f64,
+    /// true — ролик «туда-обратно» (бесшовное зацикливание, длина ×2).
+    #[serde(default)]
+    pub video_boomerang: bool,
 }
 
 fn d_poll() -> u64 { 20 }
@@ -40,6 +54,8 @@ fn d_refresh() -> u64 { 60 }
 fn d_orphan() -> u64 { 30 }
 fn d_side() -> u32 { 1400 }
 fn d_true() -> bool { true }
+fn d_vside() -> u32 { 720 }
+fn d_vsec() -> f64 { 3.0 }
 
 impl Default for Config {
     fn default() -> Self {
@@ -55,6 +71,10 @@ impl Default for Config {
             orphan_minutes: d_orphan(),
             photo_max_side: d_side(),
             require_label_match: true,
+            ffmpeg_path: String::new(),
+            video_max_side: d_vside(),
+            video_seconds: d_vsec(),
+            video_boomerang: false,
         }
     }
 }
@@ -85,4 +105,16 @@ impl Config {
     pub fn output(&self) -> PathBuf { PathBuf::from(&self.output_dir) }
     pub fn data(&self) -> PathBuf { PathBuf::from(&self.data_dir) }
     pub fn errors_dir(&self) -> PathBuf { self.inbox().join("_Ошибки") }
+
+    pub fn ffmpeg(&self) -> PathBuf {
+        if !self.ffmpeg_path.trim().is_empty() {
+            return PathBuf::from(self.ffmpeg_path.trim());
+        }
+        let near = Config::path_next_to_exe().with_file_name(if cfg!(windows) { "ffmpeg.exe" } else { "ffmpeg" });
+        if near.exists() {
+            near
+        } else {
+            PathBuf::from("ffmpeg")
+        }
+    }
 }

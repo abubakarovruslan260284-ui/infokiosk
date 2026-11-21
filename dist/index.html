@@ -28,7 +28,9 @@
       <section id="cta">
         <div class="lead">Поднесите товар</div>
         <div class="sub">штрихкодом к окошку сканера&nbsp;&mdash; узнайте цену</div>
-        <div class="picker-hint" hidden>или нажмите кнопку&nbsp;&mdash; подберём товар по цене</div>
+        <button type="button" class="picker-btn" hidden>
+          <span class="pb-spark"></span>Подобрать товар по&nbsp;цене
+        </button>
         <div class="scanbox">
           <div class="bars">
             <span class="h5"></span><span class="h2"></span><span class="h4"></span>
@@ -81,26 +83,42 @@
       </section>
     </section>
 
-    <!-- ПОДБОРКА ПО ЦЕНЕ (только киоск с USB-кнопкой, режим "picker") -->
+    <!-- ПОДБОРКА ПО ЦЕНЕ (только сенсорный киоск в режиме "picker") -->
     <section id="picker" hidden>
       <div class="pk-head">
         <img src="./img/logo.png" alt="ИрсКом" />
-        <span class="pk-title">Подберём по цене</span>
+        <span class="pk-title">Подбор по цене</span>
       </div>
+
+      <!-- 1. выбор суммы -->
       <div class="pk-choose">
-        <div class="pk-ask">Выберите, на какую сумму подобрать</div>
+        <div class="pk-ask">На какую сумму подобрать?</div>
         <div class="pk-ranges"></div>
+        <div class="pk-foot">Коснитесь нужной суммы</div>
       </div>
+
+      <!-- 2. «генерация» подборки (видимая сборка для посетителя и сторис) -->
+      <div class="pk-gen" hidden>
+        <div class="pk-range-label"></div>
+        <div class="pk-gen-title">Собираю подборку для&nbsp;вас</div>
+        <div class="pk-mosaic"></div>
+        <div class="pk-steps"></div>
+        <div class="pk-progress"><i></i><span>0%</span></div>
+      </div>
+
+      <!-- 3. готовая подборка: коллаж -->
       <div class="pk-grid-wrap" hidden>
         <div class="pk-range-label"></div>
+        <div class="pk-done">Готово! <span class="pk-done-n"></span></div>
         <div class="pk-grid"></div>
       </div>
+
+      <!-- 4. показ по одному -->
       <div class="pk-single-wrap" hidden>
         <div class="pk-range-label"></div>
         <div class="pk-single"></div>
         <div class="pk-dots"></div>
       </div>
-      <div class="pk-foot">Нажмите кнопку ещё раз, чтобы выбрать другую сумму</div>
     </section>
 
     <!-- НАСТРОЙКИ (F3) -->
@@ -159,14 +177,14 @@
           <span>Режим киоска</span>
           <select name="kiosk_mode">
             <option value="showcase">Витрина + проверка цены</option>
-            <option value="picker">Витрина + проверка цены + подборка по цене (USB-кнопка)</option>
+            <option value="picker">Витрина + проверка цены + подбор по цене (сенсорный экран)</option>
           </select>
         </label>
         <label>
           <span><input type="checkbox" name="show_cards" /> Показывать карточки товаров в карусели</span>
         </label>
         <div class="columns-2">
-          <label><span>Клавиша USB-кнопки подборки</span><input type="text" name="picker_key" class="half-length" readonly /></label>
+          <label><span>Клавиша внешней кнопки подборки (необязательно)</span><input type="text" name="picker_key" class="half-length" readonly /></label>
           <label><span>&nbsp;</span><button type="button" class="learn-key">Запомнить кнопку</button></label>
         </div>
         <hr />

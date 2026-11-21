@@ -10,8 +10,9 @@
 //      слабому киоску нельзя, поэтому в DOM живут только текущий слайд
 //      и пара следующих; дальше они подгружаются по ходу показа.
 //
-// Карусель: карточки в случайном порядке, после каждых трёх карточек —
-// один рекламный слайд. Нет карточек — как раньше, только реклама.
+// Карусель: карточки (ролики товаров) в случайном порядке — у каждого
+// киоска свой, и на каждом новом круге порядок перемешивается заново.
+// После каждых трёх карточек — один рекламный слайд, если реклама есть.
 
 const sliderListEl = document.querySelector("#slider ul");
 const invoke = window.__TAURI__.core.invoke;
@@ -100,9 +101,29 @@ function makeSlide(item) {
     li.className = "card-slide";
     const photo = document.createElement("div");
     photo.className = "cs-photo";
-    const img = document.createElement("img");
-    img.src = convertFileSrc(c.path);
-    photo.appendChild(img);
+    let mediaReady;
+    if (c.video_path) {
+      // Ролик товара: крутится по кругу без звука, пока карточка на экране
+      // (запуск/пауза — attachVideoAutoplay ниже).
+      const v = document.createElement("video");
+      v.src = convertFileSrc(c.video_path);
+      v.poster = convertFileSrc(c.path);
+      v.muted = true;
+      v.loop = true;
+      v.playsInline = true;
+      v.preload = "auto";
+      photo.appendChild(v);
+      mediaReady = new Promise(function (resolve) {
+        v.addEventListener("canplaythrough", resolve, { once: true });
+        v.addEventListener("error", resolve, { once: true });
+        setTimeout(resolve, 6000);
+      });
+    } else {
+      const img = document.createElement("img");
+      img.src = convertFileSrc(c.path);
+      photo.appendChild(img);
+      mediaReady = (img.decode ? img.decode() : Promise.resolve()).catch(function () {});
+    }
 
     const info = document.createElement("div");
     info.className = "cs-info";
@@ -125,7 +146,7 @@ function makeSlide(item) {
 
     li.appendChild(photo);
     li.appendChild(info);
-    ready = (img.decode ? img.decode() : Promise.resolve()).catch(function () {});
+    ready = mediaReady;
   } else {
     const img = document.createElement("img");
     img.src = convertFileSrc(item.path);
@@ -144,7 +165,15 @@ function disposeSlide(li) {
   li.remove();
 }
 
+let lastSlides = [];
+let lastCards = [];
+
 function nextItem() {
+  // Новый круг — новый случайный порядок (чтобы киоск не повторял одну и
+  // ту же последовательность весь день).
+  if (playPos > 0 && playPos % playlist.length === 0 && windowed) {
+    playlist = buildPlaylist(lastSlides, lastCards);
+  }
   const it = playlist[playPos % playlist.length];
   playPos++;
   return it;
@@ -180,6 +209,8 @@ async function loadSlides(opts) {
     return true; // контент ЕСТЬ, применим его чуть позже
   }
 
+  lastSlides = slides;
+  lastCards = carouselCards;
   playlist = buildPlaylist(slides, carouselCards);
   playPos = 0;
   windowed = playlist.length > STATIC_LIMIT;

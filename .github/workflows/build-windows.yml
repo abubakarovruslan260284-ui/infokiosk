@@ -20,6 +20,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Папка для журналов сборки
+        # Журналы ключевых шагов сохраняются в ci-logs и в конце (даже при
+        # ошибке) выкладываются в ветку ci-status — так ход сборки и текст
+        # любой ошибки можно прочитать, не заходя на сайт GitHub.
+        shell: pwsh
+        run: New-Item -ItemType Directory -Force ci-logs | Out-Null
+
       - name: Установить Rust
         # Точная версия компилятора берётся из файла rust-toolchain.toml
         # в корне проекта (закреплена там на 1.77.2 ради Windows 7/8/8.1
@@ -91,7 +98,8 @@ jobs:
           cd src-tauri
           Remove-Item -Force Cargo.lock -ErrorAction SilentlyContinue
           $env:CARGO_RESOLVER_INCOMPATIBLE_RUST_VERSIONS = "fallback"
-          cargo +stable generate-lockfile
+          cmd /c "cargo +stable generate-lockfile > ..\ci-logs\resolve.log 2>&1"
+          Get-Content ..\ci-logs\resolve.log
           # Старый Cargo 1.77.2 понимает только формат №3 этого файла,
           # современный записывает №4 — разница только в номере,
           # содержимое для наших пакетов одинаковое.
@@ -150,8 +158,13 @@ jobs:
           }
 
       - name: Собрать инфокиоск (.exe/.msi/.nsis)
-        run: tauri build
-        working-directory: .
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Continue"
+          cmd /c "tauri build > ci-logs\tauri-build.log 2>&1"
+          $code = $LASTEXITCODE
+          Get-Content ci-logs\tauri-build.log
+          exit $code
 
       - name: Переименовать установщик в безопасное имя
         # Имя программы содержит кириллицу ("Инфокиоск"), и NSIS
@@ -168,17 +181,46 @@ jobs:
       - name: Собрать «Издателя» (kiosk_publish CLI)
         run: cargo build --release --manifest-path tools/kiosk-publisher-cli/Cargo.toml
 
+      - name: Скачать ffmpeg для службы карточек
+        # ffmpeg перекодирует ролики с айфона (HEVC) в H.264 — его
+        # показывают все киоски, включая Windows 7. Кладётся в комплект
+        # службы рядом с kiosk_cards.exe, на PC-38 ничего ставить не надо.
+        shell: pwsh
+        run: |
+          $url = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip"
+          Invoke-WebRequest -Uri $url -OutFile ffmpeg.zip
+          Expand-Archive ffmpeg.zip -DestinationPath ffmpeg-dl -Force
+          $exe = Get-ChildItem -Path ffmpeg-dl -Recurse -Filter ffmpeg.exe | Select-Object -First 1
+          New-Item -ItemType Directory -Force tools/kiosk-cards/bundle | Out-Null
+          Copy-Item $exe.FullName tools/kiosk-cards/bundle/ffmpeg.exe
+          & tools/kiosk-cards/bundle/ffmpeg.exe -hide_banner -version | Select-Object -First 1
+
       - name: Проверить и собрать службу карточек (kiosk_cards)
         # Служба работает на PC-38 (Windows 10), а не на киосках, поэтому
         # собирается обычным современным Rust (+stable), без ограничений
         # ради Windows 7. Тесты: разбор имён файлов, распознавание
-        # штрихкода, ответ 1С, публикация для киосков.
+        # штрихкода, перекодирование ролика, ответ 1С, публикация.
         shell: pwsh
         run: |
-          cargo +stable test --release --manifest-path tools/kiosk-cards/Cargo.toml
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          cargo +stable build --release --manifest-path tools/kiosk-cards/Cargo.toml
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $ErrorActionPreference = "Continue"
+          $env:FFMPEG = (Resolve-Path tools/kiosk-cards/bundle/ffmpeg.exe).Path
+          cmd /c "cargo +stable test --release --manifest-path tools/kiosk-cards/Cargo.toml > ci-logs\kiosk-cards.log 2>&1"
+          $code = $LASTEXITCODE
+          if ($code -eq 0) {
+            cmd /c "cargo +stable build --release --manifest-path tools/kiosk-cards/Cargo.toml >> ci-logs\kiosk-cards.log 2>&1"
+            $code = $LASTEXITCODE
+          }
+          Get-Content ci-logs\kiosk-cards.log
+          exit $code
+
+      - name: Комплект службы для PC-38 (zip)
+        shell: pwsh
+        run: |
+          $b = "tools/kiosk-cards/bundle"
+          Copy-Item tools/kiosk-cards/target/release/kiosk_cards.exe $b/
+          Copy-Item tools/kiosk-cards/README.md "$b/ИНСТРУКЦИЯ.md"
+          Compress-Archive -Path "$b/*" -DestinationPath KioskCards-PC38.zip -Force
+          Get-Item KioskCards-PC38.zip | Select-Object Name, Length
 
       - name: Опубликовать артефакты сборки
         uses: actions/upload-artifact@v4
@@ -188,7 +230,7 @@ jobs:
             src-tauri/target/release/bundle/nsis/*.exe
             src-tauri/target/release/infokiosk.exe
             tools/kiosk-publisher-cli/target/release/kiosk_publish.exe
-            tools/kiosk-cards/target/release/kiosk_cards.exe
+            KioskCards-PC38.zip
           if-no-files-found: error
 
       - name: Опубликовать релиз со стабильной ссылкой на скачивание
@@ -199,6 +241,34 @@ jobs:
           files: |
             src-tauri/target/release/bundle/nsis/*.exe
             tools/kiosk-publisher-cli/target/release/kiosk_publish.exe
-            tools/kiosk-cards/target/release/kiosk_cards.exe
+            KioskCards-PC38.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Отчёт о сборке (ветка ci-status)
+        # Всегда, даже при ошибке: итог + журналы шагов в отдельную ветку
+        # ci-status. Её можно прочитать обычным git, без сайта GitHub.
+        if: always()
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Continue"
+          New-Item -ItemType Directory -Force ci-logs | Out-Null
+          $lines = @(
+            "run=${{ github.run_number }}",
+            "status=${{ job.status }}",
+            "sha=${{ github.sha }}",
+            "time=$((Get-Date).ToUniversalTime().ToString('o'))",
+            "release=https://github.com/${{ github.repository }}/releases/tag/build-${{ github.run_number }}"
+          )
+          Get-ChildItem src-tauri/target/release/bundle/nsis -Filter *.exe -ErrorAction SilentlyContinue | ForEach-Object { $lines += "installer=$($_.Name) $($_.Length)" }
+          Get-ChildItem KioskCards-PC38.zip -ErrorAction SilentlyContinue | ForEach-Object { $lines += "cards_zip=$($_.Name) $($_.Length)" }
+          $lines | Set-Content -Encoding utf8 ci-logs/STATUS.txt
+          Copy-Item src-tauri/Cargo.lock ci-logs/kiosk-Cargo.lock -ErrorAction SilentlyContinue
+          Set-Location ci-logs
+          git init -q
+          git config user.name "ci"
+          git config user.email "ci@users.noreply.github.com"
+          git checkout -q -b ci-status
+          git add -A
+          git commit -q -m "build ${{ github.run_number }}: ${{ job.status }}"
+          git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" ci-status

@@ -20,7 +20,8 @@ use crate::config::Config;
 use crate::names::{self, Kind, NameProblem, ParsedName};
 use crate::onec::{OneC, OneCError};
 use crate::publish::{self, HashCache};
-use crate::store::{photo_name, Card, Store};
+use crate::store::{photo_name, video_name, Card, Store};
+use crate::video::{make_card_video, VideoOptions};
 
 pub struct App {
     pub cfg: Config,
@@ -37,6 +38,7 @@ pub struct App {
     /// Уже распознанные этикетки (чтобы не распознавать заново, пока 1С
     /// недоступна и пара ждёт).
     decoded_cache: HashMap<PathBuf, Vec<String>>,
+    ffmpeg_missing_logged: bool,
 }
 
 pub fn now_human() -> String {
@@ -66,6 +68,7 @@ impl App {
             next_refresh: Instant::now() + Duration::from_secs(60),
             onec_down_logged: false,
             decoded_cache: HashMap::new(),
+            ffmpeg_missing_logged: false,
         })
     }
 
@@ -139,7 +142,13 @@ impl App {
             if !files.iter().all(|(_, p)| stable.get(p).copied().unwrap_or(false)) {
                 continue; // ещё докачивается
             }
-            let photo = files.iter().filter(|(n, _)| n.kind == Kind::Photo).map(|(_, p)| p.clone()).last();
+            // для товара ролик важнее фото, если прислали и то и другое
+            let photo = files
+                .iter()
+                .filter(|(n, _)| n.kind == Kind::Photo && n.video)
+                .chain(files.iter().filter(|(n, _)| n.kind == Kind::Photo && !n.video))
+                .map(|(_, p)| p.clone())
+                .next();
             let label = files.iter().filter(|(n, _)| n.kind == Kind::Label).map(|(_, p)| p.clone()).last();
             let code = files[0].0.code.clone();
             let all: Vec<PathBuf> = files.iter().map(|(_, p)| p.clone()).collect();
@@ -202,13 +211,42 @@ impl App {
             }
         };
 
-        // в) Фото для карточки
+        // в) Фото или ролик для карточки
         let photo_file = photo_name(code);
-        let dst = self.cfg.data().join("photos").join(&photo_file);
-        if let Err(e) = make_card_photo(photo, &dst, self.cfg.photo_max_side) {
-            self.reject(all, code, &decoded, &format!("не открывается снимок товара: {e}"));
-            return;
-        }
+        let photos_dir = self.cfg.data().join("photos");
+        let dst = photos_dir.join(&photo_file);
+        let is_video = names::parse(&photo.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default())
+            .map(|p| p.video)
+            .unwrap_or(false);
+        let video_file = if is_video {
+            let vname = video_name(code);
+            let opts = VideoOptions {
+                max_side: self.cfg.video_max_side,
+                seconds: self.cfg.video_seconds,
+                boomerang: self.cfg.video_boomerang,
+            };
+            if let Err(e) = make_card_video(&self.cfg.ffmpeg(), photo, &photos_dir.join(&vname), &dst, &opts) {
+                if e.starts_with("не запускается ffmpeg") {
+                    // не брак снимка, а нет ffmpeg — ждём, файлы не трогаем
+                    if !self.ffmpeg_missing_logged {
+                        self.log(&format!("{e} — положите ffmpeg.exe рядом со службой; ролики подождут"));
+                        self.ffmpeg_missing_logged = true;
+                    }
+                    return;
+                }
+                self.reject(all, code, &decoded, &format!("не получается обработать ролик товара: {e}"));
+                return;
+            }
+            Some(vname)
+        } else {
+            if let Err(e) = make_card_photo(photo, &dst, self.cfg.photo_max_side) {
+                self.reject(all, code, &decoded, &format!("не открывается снимок товара: {e}"));
+                return;
+            }
+            // товар пересняли фото вместо ролика — старый ролик больше не нужен
+            let _ = fs::remove_file(photos_dir.join(video_name(code)));
+            None
+        };
 
         // г) База
         let now = now_human();
@@ -223,6 +261,7 @@ impl App {
             stock: None,
             group: None,
             photo: photo_file.clone(),
+            video: None,
             found_in_1c: true,
             created: now.clone(),
             updated: now.clone(),
@@ -230,11 +269,13 @@ impl App {
         });
         card.apply_good(&good, &now);
         card.photo = photo_file;
+        card.video = video_file.clone();
         card.updated = now.clone();
         let line = format!(
-            "{} карточка {}: {} — {:.2} ₽ по карте{}",
+            "{} карточка {}{}: {} — {:.2} ₽ по карте{}",
             if existed { "обновлена" } else { "новая" },
             code,
+            if video_file.is_some() { " (ролик)" } else { "" },
             good.name,
             good.discounted_price,
             match good.stock {
@@ -318,6 +359,9 @@ impl App {
                 Some(k) => {
                     if let Some(c) = self.store.cards.remove(&k) {
                         let _ = fs::remove_file(self.cfg.data().join("photos").join(&c.photo));
+                        if let Some(v) = &c.video {
+                            let _ = fs::remove_file(self.cfg.data().join("photos").join(v));
+                        }
                         removed.push(format!("{} {}", c.code, c.name));
                     }
                 }

@@ -6,3 +6,5 @@ node_modules
 *.log
 content-cache/
 .staging-*
+/tools/kiosk-cards/bundle
+/ci-logs

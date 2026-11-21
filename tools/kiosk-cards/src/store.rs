@@ -23,7 +23,11 @@ pub struct Card {
     #[serde(default)]
     pub group: Option<String>,
     /// Имя файла фото (одинаковое в data_dir/photos и в общей папке).
+    /// Если есть ролик — это его неподвижный кадр.
     pub photo: String,
+    /// Имя файла ролика (card_<код>.mp4), если товар снят видео.
+    #[serde(default)]
+    pub video: Option<String>,
     /// Товар нашёлся в 1С при последней проверке.
     #[serde(default = "yes")]
     pub found_in_1c: bool,
@@ -62,6 +66,11 @@ impl Card {
         }
         changed
     }
+}
+
+/// Имя файла ролика для кода (рядом с фото, то же имя, .mp4).
+pub fn video_name(code: &str) -> String {
+    photo_name(code).trim_end_matches(".jpg").to_string() + ".mp4"
 }
 
 /// Имя файла фото для кода: латиница/цифры как есть, остальное — в hex,
@@ -111,6 +120,8 @@ pub struct PublicCard {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub group: Option<String>,
     pub photo: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub video: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -135,6 +146,7 @@ impl PublicCards {
                     discount_percent: c.discount_percent,
                     group: c.group.clone(),
                     photo: c.photo.clone(),
+                    video: c.video.clone(),
                 })
                 .collect(),
         }
@@ -152,7 +164,7 @@ mod tests {
     fn card() -> Card {
         Card {
             code: "1".into(), name: "Кисть".into(), characteristic: "".into(), price: 100.0, discounted_price: 95.0,
-            discount_percent: 5.0, stock: None, group: None, photo: "card_1.jpg".into(), found_in_1c: true,
+            discount_percent: 5.0, stock: None, group: None, photo: "card_1.jpg".into(), video: None, found_in_1c: true,
             created: "t0".into(), updated: "t0".into(), checked: "t0".into(),
         }
     }
@@ -183,5 +195,6 @@ mod tests {
     fn photo_names_are_safe() {
         assert_eq!(photo_name("4680269373655"), "card_4680269373655.jpg");
         assert_eq!(photo_name("СК-1"), "card_xd0a1d09a2d31.jpg");
+        assert_eq!(video_name("4680269373655"), "card_4680269373655.mp4");
     }
 }

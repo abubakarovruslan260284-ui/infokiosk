@@ -1,12 +1,13 @@
 //! Разбор имён файлов, которые присылает «Быстрая команда» с айфона.
 //!
-//! Шаблон:  <штрихкод>__<дата-время>__<вид>.jpg
-//!   вид = photo (снимок товара) или label (снимок этикетки).
-//! Например: 4680269373655__20261121-153012__photo.jpg
+//! Шаблон:  <штрихкод>__<дата-время>__<вид>.<расширение>
+//!   вид = video (ролик товара, .mp4/.mov), photo (снимок товара, .jpg)
+//!         или label (снимок этикетки, .jpg).
+//! Например: 4680269373655__20261121-153012__video.mp4
 //!           4680269373655__20261121-153012__label.jpg
 //!
-//! Для удобства принимаются и русские пометки (товар / этикетка) и
-//! цифры (1 — товар, 2 — этикетка). Регистр не важен.
+//! Для удобства принимаются и русские пометки (видео / товар / этикетка)
+//! и цифры (1 — товар, 2 — этикетка). Регистр не важен.
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Kind {
@@ -19,6 +20,8 @@ pub struct ParsedName {
     pub code: String,
     pub stamp: String,
     pub kind: Kind,
+    /// Файл — видеоролик (а не фото).
+    pub video: bool,
 }
 
 impl ParsedName {
@@ -44,11 +47,12 @@ pub fn parse(file_name: &str) -> Result<ParsedName, NameProblem> {
         Some((s, e)) => (s, e),
         None => return Err(NameProblem::NotImage),
     };
-    match ext {
-        "jpg" | "jpeg" | "png" => {}
+    let video = match ext {
+        "jpg" | "jpeg" | "png" => false,
+        "mp4" | "mov" | "m4v" => true,
         "heic" | "heif" => return Err(NameProblem::Heic),
         _ => return Err(NameProblem::NotImage),
-    }
+    };
     // Берём исходное (не приведённое к нижнему регистру) имя для кода —
     // в кодах 1С бывают буквы.
     let orig_stem = &file_name[..stem.len()];
@@ -59,7 +63,7 @@ pub fn parse(file_name: &str) -> Result<ParsedName, NameProblem> {
     let code = parts[0];
     let stamp = parts[1];
     let kind = match parts[2].to_lowercase().as_str() {
-        "photo" | "foto" | "товар" | "tovar" | "p" | "1" => Kind::Photo,
+        "photo" | "foto" | "товар" | "tovar" | "p" | "1" | "video" | "видео" | "ролик" | "v" => Kind::Photo,
         "label" | "этикетка" | "etiketka" | "l" | "2" => Kind::Label,
         _ => return Err(NameProblem::BadPattern),
     };
@@ -69,7 +73,11 @@ pub fn parse(file_name: &str) -> Result<ParsedName, NameProblem> {
     if stamp.is_empty() || !stamp.chars().all(|c| c.is_ascii_digit() || c == '-' || c == '_' || c == 'T' || c == '.') {
         return Err(NameProblem::BadPattern);
     }
-    Ok(ParsedName { code: code.to_string(), stamp: stamp.to_string(), kind })
+    if kind == Kind::Label && video {
+        // этикетка нужна именно фотографией — с неё читается штрихкод
+        return Err(NameProblem::BadPattern);
+    }
+    Ok(ParsedName { code: code.to_string(), stamp: stamp.to_string(), kind, video })
 }
 
 /// Приводит код к виду для сравнения: только буквы/цифры, верхний регистр.
@@ -111,6 +119,15 @@ mod tests {
         let l = parse("4680269373655__20261121-153012__LABEL.JPG").unwrap();
         assert_eq!(l.kind, Kind::Label);
         assert_eq!(p.group_key(), l.group_key());
+    }
+
+    #[test]
+    fn accepts_video_of_product() {
+        let v = parse("4680269373655__20261121-153012__video.MOV").unwrap();
+        assert_eq!(v.kind, Kind::Photo);
+        assert!(v.video);
+        assert!(parse("1__2__ролик.mp4").unwrap().video);
+        assert_eq!(parse("1__2__label.mp4"), Err(NameProblem::BadPattern));
     }
 
     #[test]
