@@ -37,6 +37,7 @@
       "<div><b>Файл настроек:</b> " + esc(d.settings_path) + "</div>" +
       "<div><b>Локальный кэш:</b> " + esc(d.cache_root) + "</div>" +
       "<div><b>Слайдов в кэше сейчас:</b> " + d.slide_count + "</div>" +
+      "<div><b>Карточек товаров:</b> " + (d.card_count || 0) + " &middot; <b>Режим:</b> " + (setting("kiosk_mode") === "picker" ? "витрина + подборка по цене" : "витрина") + "</div>" +
       "<div style='margin-top:16px;color:#fff'><b>Последние записи журнала синхронизации:</b></div>" +
       "<div style='margin-top:6px;color:#9fb'>" + esc(d.log_tail) + "</div>" +
       "<div style='margin-top:20px;color:#789'>Обновить: F4 закрыть и снова открыть. Форсировать синхронизацию сейчас: F5.</div>";

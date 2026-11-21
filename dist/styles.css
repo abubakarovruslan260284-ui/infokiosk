@@ -116,6 +116,82 @@ img{display:block}
 #cta .lead{font-family:var(--f);font-weight:800;color:#fff;font-size:5.4vh;line-height:1.02}
 #cta .sub{font-family:var(--fb);font-weight:500;color:rgba(255,255,255,.72);font-size:2.6vh}
 
+#cta .picker-hint{font-family:var(--f);font-weight:700;color:#fff;font-size:2.4vh;
+  background:var(--accent);padding:.8vh 3vw;border-radius:3vh;margin-top:.4vh;
+  box-shadow:0 1vh 2.4vh -1vh rgba(231,58,124,.7)}
+
+/* ===================== КАРТОЧКА ТОВАРА В КАРУСЕЛИ =====================
+   Фото + название в две строки + цена по карте. Рисуется здесь, а не
+   картинкой: служба карточек присылает только фото и данные из 1С,
+   поэтому смена цены — это несколько байт в cards.json, а не новая
+   картинка. */
+#slider ul li.card-slide{flex-direction:column;align-items:stretch;justify-content:flex-start}
+#slider ul li.card-slide .cs-photo{position:relative;flex:1 1 auto;min-height:0}
+#slider ul li.card-slide .cs-photo img{position:absolute;inset:0;width:100%;height:100%;
+  object-fit:contain;padding:3vh 4vw 1vh;filter:none}
+#slider ul li.card-slide.enter .cs-photo img{animation:ken 9s ease-out both}
+#slider ul li.card-slide .cs-info{flex:0 0 auto;padding:2.2vh 6vw 3.4vh;
+  background:linear-gradient(180deg,rgba(238,243,249,0),var(--mist) 22%);
+  display:flex;flex-direction:column;gap:1vh}
+.cs-name{font-family:var(--f);font-weight:800;color:var(--ink-deep);font-size:3.6vh;line-height:1.16;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.32em}
+.cs-price{display:flex;align-items:flex-start;gap:1.2vw;margin-top:.6vh}
+.cs-value{font-family:var(--f);font-weight:900;color:var(--accent);font-size:11vh;line-height:.86;
+  letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.cs-tail{display:flex;flex-direction:column;gap:.4vh;padding-top:1vh}
+.cs-kop{font-family:var(--f);font-weight:800;color:var(--accent);font-size:4.4vh;line-height:1}
+.cs-tail i{font-style:normal;font-family:var(--f);font-weight:800;color:var(--ink);font-size:4vh;line-height:1}
+.cs-label{font-family:var(--f);font-weight:800;color:var(--ink);font-size:2.2vh;letter-spacing:.08em;text-transform:uppercase}
+
+/* ===================== ПОДБОРКА ПО ЦЕНЕ ===================== */
+#picker{position:absolute;inset:0;z-index:20;display:flex;flex-direction:column;
+  background:radial-gradient(120% 90% at 80% -10%,#f7fbff,var(--mist) 55%,#e3ecf6);
+  padding:3.4vh 5vw 3vh;font-family:var(--fb);user-select:none}
+#picker[hidden]{display:none!important}
+.pk-head{display:flex;align-items:center;justify-content:space-between}
+.pk-head img{height:5vh}
+.pk-title{font-family:var(--f);font-weight:700;color:var(--ink-soft);font-size:2vh;letter-spacing:.18em;text-transform:uppercase}
+.pk-foot{margin-top:auto;padding-top:2vh;text-align:center;color:var(--ink-soft);font-size:2.2vh;font-weight:600}
+
+.pk-choose{display:flex;flex-direction:column;flex:1;justify-content:center}
+.pk-ask{font-family:var(--f);font-weight:800;color:var(--ink-deep);font-size:4.6vh;line-height:1.12;margin:0 0 4vh}
+.pk-ranges{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:2.4vh 4vw}
+.pk-range{display:flex;flex-direction:column;align-items:flex-start;gap:.8vh;
+  padding:3.6vh 3.4vw;border:0;border-radius:4vw;background:#fff;cursor:pointer;text-align:left;
+  box-shadow:0 2vh 5vh -2vh rgba(20,50,87,.35);font-family:var(--f);
+  transition:transform .12s ease}
+.pk-range:active{transform:scale(.97)}
+.pk-r-label{font-weight:900;color:var(--accent);font-size:min(3.6vh,6.2vw);line-height:1;white-space:nowrap}
+.pk-r-count{font-weight:600;color:var(--ink-soft);font-size:2.2vh}
+.pk-range:disabled{opacity:.45;box-shadow:none}
+.pk-range:disabled .pk-r-label{color:var(--ink-soft)}
+
+.pk-range-label{font-family:var(--f);font-weight:900;color:var(--accent);font-size:6vh;line-height:1;margin:3vh 0 2.4vh}
+.pk-grid-wrap,.pk-single-wrap{display:flex;flex-direction:column;flex:1;min-height:0}
+.pk-grid{display:grid;gap:2vh 3vw;flex:1;min-height:0;align-content:start}
+.pk-grid.cols-2{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+.pk-grid.cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.pk-tile{background:#fff;border-radius:3vw;overflow:hidden;display:flex;flex-direction:column;
+  box-shadow:0 1.6vh 3.4vh -1.6vh rgba(20,50,87,.35);animation:pop .45s both}
+.pk-grid.cols-3 .pk-tile .pk-photo{height:12.5vh}
+.pk-grid.cols-2 .pk-tile .pk-photo{height:17vh}
+.pk-tile .pk-photo img{width:100%;height:100%;object-fit:contain;padding:1vh}
+.pk-tile .pk-name{margin:.6vh 2vw 1.4vh;font-family:var(--f);font-weight:700;color:var(--ink-deep);
+  font-size:1.8vh;line-height:1.2;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.4em}
+.pk-grid.cols-2 .pk-tile .pk-name{font-size:2.2vh}
+
+.pk-single{flex:1;min-height:0;display:flex}
+.pk-big{flex:1;background:#fff;border-radius:5vw;overflow:hidden;display:flex;flex-direction:column;
+  box-shadow:0 4vh 9vh -3vh rgba(20,50,87,.3);animation:rise .45s both}
+.pk-big .pk-photo{flex:1;min-height:0;position:relative}
+.pk-big .pk-photo img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;padding:3vh 4vw}
+.pk-big .pk-name{margin:2vh 6vw 4vh;font-family:var(--f);font-weight:800;color:var(--ink-deep);font-size:4vh;line-height:1.16;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.pk-dots{display:flex;justify-content:center;gap:1.2vw;margin-top:2vh}
+.pk-dots i{width:1.2vh;height:1.2vh;border-radius:50%;background:var(--line)}
+.pk-dots i.on{background:var(--accent)}
+#picker.animate .pk-choose{animation:rise .4s both}
+
 /* ===================== ЭКРАН ТОВАРА ===================== */
 #info{background:radial-gradient(120% 90% at 80% -10%,#f7fbff,var(--mist) 55%,#e3ecf6);
   display:flex;flex-direction:column;padding:14vh 6vw 5vh}

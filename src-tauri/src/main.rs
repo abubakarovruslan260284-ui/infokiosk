@@ -11,6 +11,7 @@
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod cards;
 mod settings;
 mod slides;
 mod sync_loop;
@@ -73,6 +74,7 @@ fn main() {
             save_settings_dialog,
             load_settings_dialog,
             list_active_slides,
+            list_cards,
             force_sync,
             read_diagnostics,
             fetch_price,
@@ -110,6 +112,14 @@ fn list_active_slides(state: tauri::State<AppState>) -> Vec<slides::SlideDto> {
     slides::read_slides(&active)
 }
 
+/// Карточки товаров из АКТИВНОГО локального кэша (cards.json + фото,
+/// которые кладёт служба карточек). Сеть здесь не участвует.
+#[tauri::command]
+fn list_cards(state: tauri::State<AppState>) -> Vec<cards::CardDto> {
+    let active = kiosk_sync::active_cache_dir(&state.cache_root);
+    cards::read_cards(&active)
+}
+
 /// Ручной запуск синхронизации (например, из панели настроек — кнопка
 /// «Обновить контент сейчас»), не дожидаясь фонового таймера.
 #[tauri::command]
@@ -126,6 +136,7 @@ pub struct Diagnostics {
     settings_path: String,
     cache_root: String,
     slide_count: usize,
+    card_count: usize,
     log_tail: String,
 }
 
@@ -139,6 +150,7 @@ fn read_diagnostics(app: tauri::AppHandle, state: tauri::State<AppState>) -> Dia
     let cfg = state.cfg.lock().unwrap().clone();
     let active = kiosk_sync::active_cache_dir(&state.cache_root);
     let slide_count = slides::read_slides(&active).len();
+    let card_count = cards::read_cards(&active).len();
     let log_tail = std::fs::read_to_string(&state.log_path)
         .map(|s| {
             let lines: Vec<&str> = s.lines().rev().take(25).collect();
@@ -152,6 +164,7 @@ fn read_diagnostics(app: tauri::AppHandle, state: tauri::State<AppState>) -> Dia
         settings_path: state.settings_path.display().to_string(),
         cache_root: state.cache_root.display().to_string(),
         slide_count,
+        card_count,
         log_tail,
     }
 }

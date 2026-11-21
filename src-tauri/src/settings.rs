@@ -29,6 +29,27 @@ pub struct KioskSettings {
     pub border_intensity: f64, // 0.0..1.0 — яркость/сила свечения
     #[serde(default = "default_border_speed")]
     pub border_speed_sec: f64, // длительность одного цикла анимации, сек
+    /// "showcase" — витрина + проверка цены (обычный киоск);
+    /// "picker" — то же плюс подборка по цене (киоск с USB-кнопкой).
+    #[serde(default = "default_kiosk_mode")]
+    pub kiosk_mode: String,
+    /// Код клавиши, которую посылает USB-кнопка (KeyboardEvent.code),
+    /// задаётся в F3 кнопкой «Запомнить».
+    #[serde(default = "default_picker_key")]
+    pub picker_key: String,
+    /// Показывать карточки товаров (из службы карточек) в карусели.
+    #[serde(default = "default_true")]
+    pub show_cards: bool,
+}
+
+fn default_kiosk_mode() -> String {
+    "showcase".to_string()
+}
+fn default_picker_key() -> String {
+    "F9".to_string()
+}
+fn default_true() -> bool {
+    true
 }
 
 fn default_content_source() -> String {
@@ -76,6 +97,9 @@ impl Default for KioskSettings {
             border_color: default_border_color(),
             border_intensity: default_border_intensity(),
             border_speed_sec: default_border_speed(),
+            kiosk_mode: default_kiosk_mode(),
+            picker_key: default_picker_key(),
+            show_cards: true,
         }
     }
 }

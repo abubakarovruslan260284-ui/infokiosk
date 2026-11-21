@@ -1,6 +1,7 @@
 /src-tauri/target
 /src-tauri/kiosk_sync/target
 /tools/kiosk-publisher-cli/target
+/tools/kiosk-cards/target
 node_modules
 *.log
 content-cache/

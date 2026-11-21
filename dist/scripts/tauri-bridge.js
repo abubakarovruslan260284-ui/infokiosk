@@ -7,12 +7,20 @@
     exitFullscreen: () => invoke("exit_fullscreen"),
     saveSettings: (data) => invoke("save_settings_dialog", { data: toRustSettings(data) }),
     persistSettings: (data) => invoke("save_settings", { data: toRustSettings(data) }),
-    loadSettings: () => invoke("load_settings_dialog"),
+    // Файл настроек хранится в «формате Rust» (content_source_path,
+    // slide_seconds…), а форма ждёт свои имена полей — переводим, иначе
+    // при импорте терялись путь к контенту и интервал слайдера.
+    loadSettings: async () => {
+      const data = await invoke("load_settings_dialog");
+      if (data && typeof data === "object" && "content_source_path" in data) return fromRustSettings(data);
+      return data;
+    },
     settingsFromFile: async () => {
       const data = await invoke("get_settings");
       return { data: fromRustSettings(data), settingsFilePath: "settings.json" };
     },
     getLocalSlides: () => invoke("list_active_slides"),
+    getCards: () => invoke("list_cards"),
     forceSync: () => invoke("force_sync"),
   };
   function fromRustSettings(s) {
@@ -31,6 +39,9 @@
       border_color: s.border_color,
       border_speed: s.border_speed_sec,
       border_intensity: s.border_intensity,
+      kiosk_mode: s.kiosk_mode,
+      picker_key: s.picker_key,
+      show_cards: s.show_cards,
     };
   }
   function toRustSettings(s) {
@@ -48,6 +59,9 @@
       border_color: s.border_color || "#e73a7c",
       border_speed_sec: Number(s.border_speed) || 6,
       border_intensity: Number(s.border_intensity) != null && !isNaN(Number(s.border_intensity)) ? Number(s.border_intensity) : 0.7,
+      kiosk_mode: s.kiosk_mode === "picker" ? "picker" : "showcase",
+      picker_key: s.picker_key || "F9",
+      show_cards: !(s.show_cards === false || s.show_cards === "false"),
     };
   }
 })();

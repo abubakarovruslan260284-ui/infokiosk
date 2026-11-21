@@ -168,6 +168,18 @@ jobs:
       - name: Собрать «Издателя» (kiosk_publish CLI)
         run: cargo build --release --manifest-path tools/kiosk-publisher-cli/Cargo.toml
 
+      - name: Проверить и собрать службу карточек (kiosk_cards)
+        # Служба работает на PC-38 (Windows 10), а не на киосках, поэтому
+        # собирается обычным современным Rust (+stable), без ограничений
+        # ради Windows 7. Тесты: разбор имён файлов, распознавание
+        # штрихкода, ответ 1С, публикация для киосков.
+        shell: pwsh
+        run: |
+          cargo +stable test --release --manifest-path tools/kiosk-cards/Cargo.toml
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo +stable build --release --manifest-path tools/kiosk-cards/Cargo.toml
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       - name: Опубликовать артефакты сборки
         uses: actions/upload-artifact@v4
         with:
@@ -176,6 +188,7 @@ jobs:
             src-tauri/target/release/bundle/nsis/*.exe
             src-tauri/target/release/infokiosk.exe
             tools/kiosk-publisher-cli/target/release/kiosk_publish.exe
+            tools/kiosk-cards/target/release/kiosk_cards.exe
           if-no-files-found: error
 
       - name: Опубликовать релиз со стабильной ссылкой на скачивание
@@ -186,5 +199,6 @@ jobs:
           files: |
             src-tauri/target/release/bundle/nsis/*.exe
             tools/kiosk-publisher-cli/target/release/kiosk_publish.exe
+            tools/kiosk-cards/target/release/kiosk_cards.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

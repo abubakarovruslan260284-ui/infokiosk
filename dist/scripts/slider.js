@@ -34,6 +34,10 @@ function slideNext() {
     next.classList.add(ENTER_CLASS_NAME);
     next.classList.remove(EXIT_CLASS_NAME);
   }
+
+  // content.js держит в DOM только несколько слайдов вокруг текущего
+  // (карточек товаров могут быть сотни) — даём ему дозагрузить следующие.
+  window.sliderAfterAdvance && window.sliderAfterAdvance();
 }
 
 let sliderInterval = null;

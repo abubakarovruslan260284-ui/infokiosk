@@ -1,30 +1,41 @@
-﻿/*** UTILS ***/
+/*** UTILS ***/
+
+// Все настройки в одном виде — и для сохранения в settings.json, и для
+// кнопки «Экспорт» (раньше экспорт терял рамку и путь к контенту).
+function collectSettings() {
+  return {
+    url_products: setting("api_url"),
+    url_promo: setting("api_url_2"),
+    login: setting("login"),
+    password: setting("password"),
+    show_logo: setting("show_logo"),
+    slider_interval: setting("slider_interval"),
+    border_mode: setting("border_mode"),
+    border_color: setting("border_color"),
+    border_speed: setting("border_speed"),
+    border_intensity: setting("border_intensity"),
+    kiosk_mode: setting("kiosk_mode"),
+    picker_key: setting("picker_key"),
+    show_cards: setting("show_cards"),
+  };
+}
 
 function applySettings() {
   localStorage.setItem("settings", JSON.stringify(APP_SETTINGS));
 
-  // РџСЂРѕР±СЂР°СЃС‹РІР°РµРј РЅР°СЃС‚СЂРѕР№РєРё РІ Rust (СЂР°Р±РѕС‡РёР№ settings.json + Р¶РёРІРѕР№ РїСЂРѕС†РµСЃСЃ),
-  // С‡С‚РѕР±С‹ РїСѓС‚СЊ Рє РїР°РїРєРµ РєРѕРЅС‚РµРЅС‚Р° Рё РёРЅС‚РµСЂРІР°Р» СЃР»Р°Р№РґРµСЂР° СЂРµР°Р»СЊРЅРѕ РїСЂРёРјРµРЅСЏР»РёСЃСЊ Рє
-  // С„РѕРЅРѕРІРѕР№ СЃРёРЅС…СЂРѕРЅРёР·Р°С†РёРё, Р° РЅРµ РѕСЃС‚Р°РІР°Р»РёСЃСЊ С‚РѕР»СЊРєРѕ РІ localStorage.
+  // Пробрасываем настройки в Rust (рабочий settings.json + живой процесс),
+  // чтобы путь к папке контента и интервал слайдера реально применялись к
+  // фоновой синхронизации, а не оставались только в localStorage.
   window.electronAPI &&
     window.electronAPI.persistSettings &&
-    window.electronAPI.persistSettings({
-      url_products: setting("api_url"),
-      url_promo: setting("api_url_2"),
-      login: setting("login"),
-      password: setting("password"),
-      show_logo: setting("show_logo"),
-      slider_interval: setting("slider_interval"),
-      border_mode: setting("border_mode"),
-      border_color: setting("border_color"),
-      border_speed: setting("border_speed"),
-      border_intensity: setting("border_intensity"),
-    });
+    window.electronAPI.persistSettings(collectSettings());
 
   initAuthToken();
   window.reInitContentUpdate && reInitContentUpdate();
   window.setUISettings && setUISettings();
   window.restartSlider && restartSlider();
+  window.refreshPickerUI && refreshPickerUI();
+  window.reloadContent && reloadContent();
 }
 
 function loadSettingsFromFileData(data) {
@@ -42,6 +53,9 @@ function loadSettingsFromFileData(data) {
   APP_SETTINGS["border_color"] = data?.border_color ?? "";
   APP_SETTINGS["border_speed"] = data?.border_speed ?? "";
   APP_SETTINGS["border_intensity"] = data?.border_intensity ?? "";
+  APP_SETTINGS["kiosk_mode"] = data?.kiosk_mode ?? "";
+  APP_SETTINGS["picker_key"] = data?.picker_key ?? "";
+  APP_SETTINGS["show_cards"] = data?.show_cards ?? "";
   applySavedSettingsToForm();
   applySettings();
 }
@@ -67,7 +81,7 @@ function setting(name) {
       ).replace(/\/$/, "");
 
     case "login":
-      return APP_SETTINGS[name] || "РђРїР“СЂРµР№Рґ";
+      return APP_SETTINGS[name] || "АпГрейд";
 
     case "password":
       return APP_SETTINGS[name] || "";
@@ -90,10 +104,10 @@ function setting(name) {
     case "slider_speed":
       return toNumber(name) || 1;
 
-    // в”Ђв”Ђ РќР°СЃС‚СЂРѕР№РєРё РїРѕРґСЃРІРµС‚РєРё СЂР°РјРєРё (F3). Р Р°РЅСЊС€Рµ РґР»СЏ РЅРёС… РЅРµ Р±С‹Р»Рѕ РІРµС‚РѕРє РІ
-    //    setting(), РїРѕСЌС‚РѕРјСѓ С„РѕСЂРјР° РїСЂРё РєР°Р¶РґРѕРј РѕС‚РєСЂС‹С‚РёРё Р·Р°С‚РёСЂР°Р»Р° РёС… РїСѓСЃС‚С‹Рј
-    //    Р·РЅР°С‡РµРЅРёРµРј, Р° СЃРѕС…СЂР°РЅРµРЅРёРµ СЃР±СЂР°СЃС‹РІР°Р»Рѕ РІС‹Р±СЂР°РЅРЅС‹Р№ С†РІРµС‚/СЂРµР¶РёРј. РўРµРїРµСЂСЊ
-    //    Р·РЅР°С‡РµРЅРёСЏ РєРѕСЂСЂРµРєС‚РЅРѕ С‡РёС‚Р°СЋС‚СЃСЏ, РІР°Р»РёРґРёСЂСѓСЋС‚СЃСЏ Рё РёРјРµСЋС‚ РґРµС„РѕР»С‚С‹.
+    // ── Настройки подсветки рамки (F3). Раньше для них не было веток в
+    //    setting(), поэтому форма при каждом открытии затирала их пустым
+    //    значением, а сохранение сбрасывало выбранный цвет/режим. Теперь
+    //    значения корректно читаются, валидируются и имеют дефолты.
     case "border_mode": {
       const v = APP_SETTINGS[name];
       return ["off", "solid", "pulse", "flow", "rainbow"].includes(v) ? v : "rainbow";
@@ -115,6 +129,18 @@ function setting(name) {
       return Math.min(1, Math.max(0, v));
     }
 
+    // ── Витрина карточек и подборка по цене
+    case "kiosk_mode":
+      return APP_SETTINGS[name] === "picker" ? "picker" : "showcase";
+
+    case "picker_key":
+      return APP_SETTINGS[name] || "F9";
+
+    case "show_cards": {
+      const v = APP_SETTINGS[name];
+      return !(v === false || v === "false");
+    }
+
     default:
       return "";
   }
@@ -125,7 +151,7 @@ function applySavedSettingsToForm() {
     if (input.type === "checkbox") {
       input.checked = setting(input.name);
     } else {
-      // text / number / color / range / select-one вЂ” РІСЃРµРј РїРѕРґС…РѕРґРёС‚ value
+      // text / number / color / range / select-one — всем подходит value
       input.value = setting(input.name);
     }
   }
@@ -166,8 +192,8 @@ window.electronAPI.settingsFromFile().then((response) => {
 
 APP_SETTINGS = settings || {};
 
-// Р‘РµСЂС‘Рј Рё <input>, Рё <select> вЂ” СЂР°РЅСЊС€Рµ РІС‹РїР°РґР°СЋС‰РёРµ СЃРїРёСЃРєРё РІ С„РѕСЂРјСѓ РЅРµ
-// РїРѕРїР°РґР°Р»Рё, РїРѕСЌС‚РѕРјСѓ РІС‹Р±РѕСЂ СЂРµР¶РёРјР° РїРѕРґСЃРІРµС‚РєРё РЅРµ СЃРѕС…СЂР°РЅСЏР»СЃСЏ.
+// Берём и <input>, и <select> — раньше выпадающие списки в форму не
+// попадали, поэтому выбор режима подсветки не сохранялся.
 const inputs = document.querySelectorAll("#settings input, #settings select");
 
 applySavedSettingsToForm();
@@ -210,18 +236,7 @@ document
   });
 
 document.querySelector("#settings .export").addEventListener("click", () => {
-  window.electronAPI.saveSettings({
-    url_products: setting("api_url"),
-    url_promo: setting("api_url_2"),
-    login: setting("login"),
-    password: setting("password"),
-    // update_interval: setting("update_interval"),
-    show_logo: setting("show_logo"),
-    // images_padding: setting("images_padding"),
-    // hide_blue_rectangle: setting("hide_blue_rectangle"),
-    slider_interval: setting("slider_interval"),
-    // slider_speed: setting("slider_speed"),
-  });
+  window.electronAPI.saveSettings(collectSettings());
 });
 
 document
@@ -230,7 +245,7 @@ document
     const data = await window.electronAPI.loadSettings();
     if (data === false) return;
     if (data === "error") {
-      alert("РћС€РёР±РєР° РїСЂРё Р·Р°РіСЂСѓР·РєРµ С„Р°Р№Р»Р° РЅР°СЃС‚СЂРѕРµРє");
+      alert("Ошибка при загрузке файла настроек");
       return;
     }
 
@@ -242,3 +257,25 @@ document.querySelector("#settings").addEventListener("dblclick", (e) => {
 });
 
 
+
+// «Запомнить кнопку»: следующее нажатие (USB-кнопки) записывается как
+// клавиша подборки. Esc — отмена.
+(function () {
+  const btn = document.querySelector("#settings .learn-key");
+  const field = document.querySelector('#settings input[name="picker_key"]');
+  if (!btn || !field) return;
+  btn.addEventListener("click", function () {
+    const before = field.value;
+    field.value = "нажмите кнопку…";
+    btn.disabled = true;
+    function onKey(e) {
+      if (e.code === "F3") return;
+      e.preventDefault();
+      e.stopPropagation();
+      field.value = e.code === "Escape" ? before : e.code || e.key;
+      btn.disabled = false;
+      document.removeEventListener("keydown", onKey, true);
+    }
+    document.addEventListener("keydown", onKey, true);
+  });
+})();

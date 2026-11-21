@@ -1,0 +1,23 @@
+[package]
+name = "kiosk_cards"
+version = "0.1.0"
+edition = "2021"
+description = "Служба карточек товаров для инфокиоска: Google Диск -> 1С -> InfoContent"
+
+[[bin]]
+name = "kiosk_cards"
+path = "src/main.rs"
+
+[dependencies]
+kiosk_sync = { path = "../../src-tauri/kiosk_sync" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+ureq = { version = "2", default-features = false }
+image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
+rxing = { version = "0.8", default-features = false, features = ["encoding_rs"] }
+base64 = "0.22"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+
+[profile.release]
+opt-level = 3
+strip = true

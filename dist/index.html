@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Инфокиоск</title>
-    <link rel="stylesheet" href="./styles.css?v=b5" />
+    <link rel="stylesheet" href="./styles.css?v=c1" />
   </head>
   <body>
     <!-- логотип из getcontent (управляется show_logo); оставлен для совместимости со скриптами -->
@@ -28,6 +28,7 @@
       <section id="cta">
         <div class="lead">Поднесите товар</div>
         <div class="sub">штрихкодом к окошку сканера&nbsp;&mdash; узнайте цену</div>
+        <div class="picker-hint" hidden>или нажмите кнопку&nbsp;&mdash; подберём товар по цене</div>
         <div class="scanbox">
           <div class="bars">
             <span class="h5"></span><span class="h2"></span><span class="h4"></span>
@@ -78,6 +79,28 @@
 
         <div class="card-label">Цена по карте ИрсКом</div>
       </section>
+    </section>
+
+    <!-- ПОДБОРКА ПО ЦЕНЕ (только киоск с USB-кнопкой, режим "picker") -->
+    <section id="picker" hidden>
+      <div class="pk-head">
+        <img src="./img/logo.png" alt="ИрсКом" />
+        <span class="pk-title">Подберём по цене</span>
+      </div>
+      <div class="pk-choose">
+        <div class="pk-ask">Выберите, на какую сумму подобрать</div>
+        <div class="pk-ranges"></div>
+      </div>
+      <div class="pk-grid-wrap" hidden>
+        <div class="pk-range-label"></div>
+        <div class="pk-grid"></div>
+      </div>
+      <div class="pk-single-wrap" hidden>
+        <div class="pk-range-label"></div>
+        <div class="pk-single"></div>
+        <div class="pk-dots"></div>
+      </div>
+      <div class="pk-foot">Нажмите кнопку ещё раз, чтобы выбрать другую сумму</div>
     </section>
 
     <!-- НАСТРОЙКИ (F3) -->
@@ -132,6 +155,21 @@
           <input type="range" name="border_intensity" class="half-length" min="0" max="1" step="0.05" />
         </label>
         <hr />
+        <label>
+          <span>Режим киоска</span>
+          <select name="kiosk_mode">
+            <option value="showcase">Витрина + проверка цены</option>
+            <option value="picker">Витрина + проверка цены + подборка по цене (USB-кнопка)</option>
+          </select>
+        </label>
+        <label>
+          <span><input type="checkbox" name="show_cards" /> Показывать карточки товаров в карусели</span>
+        </label>
+        <div class="columns-2">
+          <label><span>Клавиша USB-кнопки подборки</span><input type="text" name="picker_key" class="half-length" readonly /></label>
+          <label><span>&nbsp;</span><button type="button" class="learn-key">Запомнить кнопку</button></label>
+        </div>
+        <hr />
         <div class="actions">
           <button type="submit" class="save">Сохранить</button>
           <button type="button" class="cancel">Закрыть</button>
@@ -140,13 +178,14 @@
     </section>
 
     <input id="code" />
-    <script src="./scripts/tauri-bridge.js?v=b5"></script>
-    <script src="./scripts/utils.js?v=b5"></script>
-    <script src="./scripts/settings.js?v=b5"></script>
-    <script src="./scripts/border-fx.js?v=b5"></script>
-    <script src="./scripts/slider.js?v=b5"></script>
-    <script src="./scripts/script.js?v=b5"></script>
-    <script src="./scripts/content.js?v=b5"></script>
-    <script src="./scripts/diagnostics.js?v=b5"></script>
+    <script src="./scripts/tauri-bridge.js?v=c1"></script>
+    <script src="./scripts/utils.js?v=c1"></script>
+    <script src="./scripts/settings.js?v=c1"></script>
+    <script src="./scripts/border-fx.js?v=c1"></script>
+    <script src="./scripts/slider.js?v=c1"></script>
+    <script src="./scripts/script.js?v=c1"></script>
+    <script src="./scripts/content.js?v=c1"></script>
+    <script src="./scripts/picker.js?v=c1"></script>
+    <script src="./scripts/diagnostics.js?v=c1"></script>
   </body>
 </html>

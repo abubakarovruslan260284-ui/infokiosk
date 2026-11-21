@@ -36,6 +36,12 @@ pub fn read_slides(active_dir: &Path) -> Vec<SlideDto> {
         if name == ".local-manifest.json" || name == "manifest.json" {
             continue;
         }
+        // Фото карточек товаров (служба карточек кладёт их как card_*.jpg)
+        // показываются не голой картинкой, а карточкой с названием и
+        // ценой — см. cards.rs / list_cards.
+        if name.to_lowercase().starts_with("card_") {
+            continue;
+        }
         let Some(kind) = kind_for(&name) else { continue };
         out.push(SlideDto {
             name,
