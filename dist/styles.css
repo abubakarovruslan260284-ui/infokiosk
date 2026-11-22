@@ -20,7 +20,7 @@ img{display:block}
 [hidden],.hidden{display:none!important}
 
 #logo{display:none}                 /* служебный, заменён фирменной плашкой */
-#code{opacity:0;position:absolute;bottom:2vh;left:50%;transform:translateX(-50%);
+#code{opacity:0;pointer-events:none;position:absolute;bottom:2vh;left:50%;transform:translateX(-50%);
   width:60vw;padding:1vh;font-size:2.2vh;border:2px solid var(--ink);border-radius:1vh;text-align:center;z-index:30}
 
 #waiting,#info{position:absolute;inset:0}
@@ -139,23 +139,33 @@ img{display:block}
    картинка. */
 #slider ul li.card-slide{flex-direction:column;align-items:stretch;justify-content:flex-start}
 #slider ul li.card-slide .cs-photo{position:relative;flex:1 1 auto;min-height:0}
-#slider ul li.card-slide .cs-photo img{position:absolute;inset:0;width:100%;height:100%;
-  object-fit:contain;padding:3vh 4vw 1vh;filter:none}
-#slider ul li.card-slide .cs-photo video{position:absolute;inset:0;width:100%;height:100%;
-  object-fit:contain;padding:3vh 4vw 1vh;filter:none;background:transparent}
+#slider ul li.card-slide .cs-photo img,#slider ul li.card-slide .cs-photo video{position:absolute;inset:0;width:100%;height:100%;
+  object-fit:contain;padding:2vh 3vw 0;filter:none;background:transparent}
 #slider ul li.card-slide.enter .cs-photo img{animation:ken 9s ease-out both}
-#slider ul li.card-slide .cs-info{flex:0 0 auto;padding:2.2vh 6vw 3.4vh;
-  background:linear-gradient(180deg,rgba(238,243,249,0),var(--mist) 22%);
-  display:flex;flex-direction:column;gap:1vh}
-.cs-name{font-family:var(--f);font-weight:800;color:var(--ink-deep);font-size:3.6vh;line-height:1.16;
-  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.32em}
-.cs-price{display:flex;align-items:flex-start;gap:1.2vw;margin-top:.6vh}
-.cs-value{font-family:var(--f);font-weight:900;color:var(--accent);font-size:11vh;line-height:.86;
+#slider ul li.card-slide .cs-info{flex:0 0 auto;padding:1.4vh 5vw 2.2vh;
+  background:linear-gradient(180deg,rgba(238,243,249,0),var(--mist) 30%);
+  display:flex;flex-direction:column;gap:.4vh}
+.cs-name{font-family:var(--f);font-weight:800;color:var(--ink-deep);font-size:3vh;line-height:1.16;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.cs-price{display:flex;align-items:flex-end;gap:1.2vw;margin-top:.4vh}
+.cs-value{font-family:var(--f);font-weight:900;color:var(--accent);font-size:8vh;line-height:.86;
   letter-spacing:-.02em;font-variant-numeric:tabular-nums}
-.cs-tail{display:flex;flex-direction:column;gap:.4vh;padding-top:1vh}
-.cs-kop{font-family:var(--f);font-weight:800;color:var(--accent);font-size:4.4vh;line-height:1}
-.cs-tail i{font-style:normal;font-family:var(--f);font-weight:800;color:var(--ink);font-size:4vh;line-height:1}
-.cs-label{font-family:var(--f);font-weight:800;color:var(--ink);font-size:2.2vh;letter-spacing:.08em;text-transform:uppercase}
+.cs-tail{display:flex;flex-direction:column;gap:.3vh;align-self:flex-start;padding-top:.4vh}
+.cs-kop{font-family:var(--f);font-weight:800;color:var(--accent);font-size:3.3vh;line-height:1}
+.cs-tail i{font-style:normal;font-family:var(--f);font-weight:800;color:var(--ink);font-size:3vh;line-height:1}
+.cs-label{margin-left:auto;text-align:right;font-family:var(--f);font-weight:800;color:var(--ink);
+  font-size:1.8vh;line-height:1.2;letter-spacing:.08em;text-transform:uppercase}
+
+/* Пока на экране карточка товара, призыв «Поднесите товар» убираем,
+   а карусель растягиваем вниз — ролик товара крупнее. На рекламе
+   призыв возвращается. На киоске подбора кнопка подбора остаётся. */
+#slider{transition:bottom .6s ease}
+#cta .lead,#cta .sub,#cta .scanbox{transition:opacity .4s ease}
+#waiting.card-on #slider{bottom:3.5vh}
+#waiting.card-on #cta .lead,#waiting.card-on #cta .sub,#waiting.card-on #cta .scanbox{opacity:0}
+#waiting.picker-mode.card-on #slider{bottom:12vh}
+#cta .picker-btn{transition:bottom .6s ease}
+#waiting.card-on #cta .picker-btn{bottom:2.6vh}
 
 /* ===================== ПОДБОР ПО ЦЕНЕ ===================== */
 #picker{position:absolute;inset:0;z-index:20;display:flex;flex-direction:column;
@@ -223,7 +233,7 @@ img{display:block}
 .pk-grid.cols-3 .pk-tile .pk-photo{height:12.5vh}
 .pk-grid.cols-2 .pk-tile .pk-photo{height:17vh}
 .pk-tile .pk-photo img{width:100%;height:100%;object-fit:contain;padding:1vh}
-.pk-tile .pk-name{margin:.6vh 2vw 1.4vh;font-family:var(--f);font-weight:700;color:var(--ink-deep);
+.pk-tile .pk-name{margin:.6vh 2vw .6vh;font-family:var(--f);font-weight:700;color:var(--ink-deep);
   font-size:1.8vh;line-height:1.2;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.4em}
 .pk-grid.cols-2 .pk-tile .pk-name{font-size:2.2vh}
 
@@ -233,8 +243,20 @@ img{display:block}
   box-shadow:0 4vh 9vh -3vh rgba(20,50,87,.3);animation:rise .45s both}
 .pk-big .pk-photo{flex:1;min-height:0;position:relative}
 .pk-big .pk-photo img,.pk-big .pk-photo video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;padding:3vh 4vw}
-.pk-big .pk-name{margin:2vh 6vw 4vh;font-family:var(--f);font-weight:800;color:var(--ink-deep);font-size:4vh;line-height:1.16;
+.pk-big .pk-name{margin:1.6vh 6vw 0;font-family:var(--f);font-weight:800;color:var(--ink-deep);font-size:3.4vh;line-height:1.16;
   display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+/* цена в подборке */
+.pk-price{display:flex;align-items:flex-start;gap:.6vw;font-family:var(--f);color:var(--accent);font-weight:900}
+.pk-tile .pk-price{margin:0 2vw 1.2vh;font-size:2.6vh;line-height:1}
+.pk-tile .pk-price .pk-kop{font-size:1.4vh;font-weight:800;padding-top:.15vh}
+.pk-tile .pk-price i{font-style:normal;font-size:1.8vh;color:var(--ink);font-weight:800;padding-top:.5vh}
+.pk-big .pk-price{margin:1vh 6vw 3vh;align-items:flex-end}
+.pk-big .pk-price .pk-rub{font-size:9vh;line-height:.86;letter-spacing:-.02em}
+.pk-big .pk-price .pk-tail{display:flex;flex-direction:column;gap:.3vh;align-self:flex-start;padding-top:.4vh}
+.pk-big .pk-price .pk-kop{font-size:3.6vh;line-height:1}
+.pk-big .pk-price i{font-style:normal;font-size:3.2vh;color:var(--ink);line-height:1}
+.pk-big .pk-price .pk-lbl{margin-left:auto;text-align:right;font-size:1.8vh;line-height:1.2;color:var(--ink);
+  font-weight:800;letter-spacing:.08em;text-transform:uppercase}
 .pk-dots{display:flex;justify-content:center;gap:1.2vw;margin-top:2vh}
 .pk-dots i{width:1.2vh;height:1.2vh;border-radius:50%;background:var(--line)}
 .pk-dots i.on{background:var(--accent)}
@@ -255,6 +277,12 @@ img{display:block}
 #info-text .content{opacity:1;display:flex;flex-direction:column}
 #info-text .title{font-family:var(--f);font-weight:800;color:var(--ink-deep);
   font-size:4.6vh;line-height:1.14;letter-spacing:-.01em;text-align:left}
+#info-text .title .t-main{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+#info-text .title.long{font-size:4.2vh}
+#info-text .title .t-rest{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;
+  margin-top:1.4vh;font-family:var(--fb);font-weight:600;font-size:2.6vh;line-height:1.32;
+  letter-spacing:0;color:var(--ink-soft)}
+#info-text .title .t-rest:empty{display:none}
 
 /* карточка цены */
 #info-prices{position:relative;margin-top:auto;background:#fff;border-radius:5vw;

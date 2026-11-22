@@ -1,0 +1,13 @@
+# Windows: библиотеки Visual C++ вшиваем в сами программы (статически).
+# Иначе на киосках без «Visual C++ Redistributable» (особенно Windows 7)
+# инфокиоск не запускается: «отсутствует VCRUNTIME140.dll /
+# VCRUNTIME140_1.dll».
+[target.x86_64-pc-windows-msvc]
+rustflags = [
+  "-C", "target-feature=+crt-static",
+  "-C", "link-arg=/NODEFAULTLIB:msvcrt.lib",
+  "-C", "link-arg=/NODEFAULTLIB:vcruntime.lib",
+  "-C", "link-arg=/NODEFAULTLIB:ucrt.lib",
+  "-C", "link-arg=/NODEFAULTLIB:msvcprt.lib",
+  "-C", "link-arg=/DEFAULTLIB:libcpmt.lib",
+]

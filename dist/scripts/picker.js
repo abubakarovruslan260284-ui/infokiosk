@@ -289,9 +289,19 @@
     }
     const nm = document.createElement("div");
     nm.className = "pk-name";
-    nm.textContent = window.kioskCardTitle ? kioskCardTitle(card) : card.name;
+    nm.textContent = window.kioskSplitTitle ? kioskSplitTitle(card.name, "").main : card.name;
+    // цена по карте: посетителю понравился товар — сразу видно, сколько стоит
+    const pr = document.createElement("div");
+    pr.className = "pk-price";
+    const sp = window.kioskSplitPrice(price(card));
+    pr.innerHTML = big
+      ? '<span class="pk-rub"></span><span class="pk-tail"><span class="pk-kop"></span><i>&#8381;</i></span><span class="pk-lbl">Цена по карте<br>ИрсКом</span>'
+      : '<span class="pk-rub"></span><span class="pk-kop"></span><i>&#8381;</i>';
+    pr.querySelector(".pk-rub").textContent = sp.rub;
+    pr.querySelector(".pk-kop").textContent = sp.kop;
     d.appendChild(ph);
     d.appendChild(nm);
+    d.appendChild(pr);
     return d;
   }
 

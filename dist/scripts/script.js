@@ -32,8 +32,14 @@ function formatCents(val) {
 
 function setData(data) {
   // document.querySelector('#info .sku').textContent = data.artikul;
-  document.querySelector("#info .title").innerHTML =
-    data.name + "<br>" + data.characteristic;
+  // Название: главное крупно, подробности (хвост длинного названия и
+  // характеристика) — ниже и мельче, чтобы не занимать полэкрана.
+  const t = window.kioskSplitTitle(data.name, data.characteristic);
+  const titleEl = document.querySelector("#info .title");
+  titleEl.innerHTML = '<span class="t-main"></span><span class="t-rest"></span>';
+  titleEl.querySelector(".t-main").textContent = t.main || "—";
+  titleEl.querySelector(".t-rest").textContent = t.rest;
+  titleEl.classList.toggle("long", t.main.length > 30);
   document.querySelector("#info .price .value").textContent = parseInt(
     data.price
   );

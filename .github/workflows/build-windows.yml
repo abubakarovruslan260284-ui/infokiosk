@@ -103,6 +103,10 @@ jobs:
 
       - name: Собрать инфокиоск (.exe/.msi/.nsis)
         shell: pwsh
+        env:
+          # библиотеки VC++ вшиваются целиком через .cargo/config.toml (+crt-static);
+          # частичная схема tauri-build не нужна
+          STATIC_VCRUNTIME: "false"
         run: |
           $ErrorActionPreference = "Continue"
           cmd /c "tauri build > ci-logs\tauri-build.log 2>&1"

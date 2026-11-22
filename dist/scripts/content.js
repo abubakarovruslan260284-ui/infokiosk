@@ -129,7 +129,8 @@ function makeSlide(item) {
     info.className = "cs-info";
     const name = document.createElement("div");
     name.className = "cs-name";
-    name.textContent = cardTitle(c);
+    // в карусели — только главное из названия, коротко и крупно
+    name.textContent = window.kioskSplitTitle(c.name, "").main;
     const price = document.createElement("div");
     price.className = "cs-price";
     const p = splitPrice(c.discounted_price || c.price);
@@ -139,10 +140,10 @@ function makeSlide(item) {
     price.querySelector(".cs-kop").textContent = p.kop;
     const label = document.createElement("div");
     label.className = "cs-label";
-    label.textContent = "Цена по карте ИрсКом";
+    label.innerHTML = "Цена по карте<br>ИрсКом";
+    price.appendChild(label);
     info.appendChild(name);
     info.appendChild(price);
-    info.appendChild(label);
 
     li.appendChild(photo);
     li.appendChild(info);
@@ -259,7 +260,11 @@ window.sliderAfterAdvance = function () {
 let videoObserver = null;
 function attachVideoAutoplay() {
   videoObserver && videoObserver.disconnect();
+  const waitingBox = document.getElementById("waiting");
   videoObserver = new MutationObserver(function () {
+    // карточка товара на экране — призыв «Поднесите товар» прячем
+    const cur = sliderListEl.querySelector("li.enter");
+    waitingBox.classList.toggle("card-on", !!cur && cur.classList.contains("card-slide"));
     sliderListEl.querySelectorAll("li").forEach(function (li) {
       const video = li.querySelector("video");
       if (!video) return;
