@@ -90,10 +90,6 @@
 
   <div class="msg" id="msg"></div>
 
-<script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"></script>
-<script>
-  if (!window.ZXing) document.write('<script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"><\/script>');
-</script>
 <script>
   var KEY = <?!= JSON.stringify(accessKey) ?>;
   var codeEl = document.getElementById('code');
@@ -240,9 +236,43 @@
 
   // Ищем штрихкод на фото прямо в телефоне (ZXing), чтобы ошибка была
   // видна сразу, а не потом в папке «_Ошибки». null — проверить нечем.
+  var ZX_URLS = [
+    'https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js',
+    'https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js'
+  ];
+  var zxLoading = null;
+  // Распознавалку подгружаем в фоне при открытии страницы; страница от
+  // неё не зависит: не загрузилась — штрихкод проверит PC-38.
+  function loadZX() {
+    if (window.ZXing && window.ZXing.MultiFormatReader) return Promise.resolve(window.ZXing);
+    if (zxLoading) return zxLoading;
+    zxLoading = new Promise(function (resolve) {
+      (function attempt(i) {
+        if (i >= ZX_URLS.length) { zxLoading = null; resolve(null); return; }
+        var sc = document.createElement('script');
+        var done = false;
+        var t = setTimeout(function () { if (!done) { done = true; attempt(i + 1); } }, 15000);
+        sc.onload = function () {
+          if (done) return;
+          done = true; clearTimeout(t);
+          if (window.ZXing && window.ZXing.MultiFormatReader) resolve(window.ZXing); else attempt(i + 1);
+        };
+        sc.onerror = function () { if (!done) { done = true; clearTimeout(t); attempt(i + 1); } };
+        sc.src = ZX_URLS[i];
+        document.head.appendChild(sc);
+      })(0);
+    });
+    return zxLoading;
+  }
+
   function readCodes(blob) {
-    var Z = window.ZXing;
-    if (!Z || !Z.MultiFormatReader) return Promise.resolve(null);
+    return loadZX().then(function (Z) {
+      if (!Z) return null;
+      return decodeWith(Z, blob);
+    });
+  }
+
+  function decodeWith(Z, blob) {
     return new Promise(function (resolve) {
       var img = new Image();
       img.onload = function () {
@@ -379,6 +409,7 @@
   });
 
   reset();
+  setTimeout(loadZX, 500);
 </script>
 </body>
 </html>
