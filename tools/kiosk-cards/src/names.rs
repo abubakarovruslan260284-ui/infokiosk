@@ -1,18 +1,21 @@
-//! Разбор имён файлов, которые присылает «Быстрая команда» с айфона.
+//! Разбор имён файлов, которые присылает страница телефона.
 //!
 //! Шаблон:  <штрихкод>__<дата-время>__<вид>.<расширение>
 //!   вид = video (ролик товара, .mp4/.mov), photo (снимок товара, .jpg)
-//!         или label (снимок этикетки, .jpg).
+//!         или cover (фото обложки — картинка карточки, .jpg).
 //! Например: 4680269373655__20261121-153012__video.mp4
-//!           4680269373655__20261121-153012__label.jpg
+//!           4680269373655__20261121-153012__cover.jpg
 //!
-//! Для удобства принимаются и русские пометки (видео / товар / этикетка)
-//! и цифры (1 — товар, 2 — этикетка). Регистр не важен.
+//! Штрихкод берётся из имени (его вводит кольцо-сканер). Принимаются и
+//! русские пометки (видео / товар / обложка), и цифры (1 — товар,
+//! 2 — обложка). Старое имя label тоже считается обложкой. Регистр не важен.
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Kind {
+    /// Ролик или снимок товара.
     Photo,
-    Label,
+    /// Фото обложки — картинка карточки и заставка ролика.
+    Cover,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -64,7 +67,7 @@ pub fn parse(file_name: &str) -> Result<ParsedName, NameProblem> {
     let stamp = parts[1];
     let kind = match parts[2].to_lowercase().as_str() {
         "photo" | "foto" | "товар" | "tovar" | "p" | "1" | "video" | "видео" | "ролик" | "v" => Kind::Photo,
-        "label" | "этикетка" | "etiketka" | "l" | "2" => Kind::Label,
+        "cover" | "обложка" | "oblozhka" | "c" | "label" | "этикетка" | "etiketka" | "l" | "2" => Kind::Cover,
         _ => return Err(NameProblem::BadPattern),
     };
     if code.is_empty() || !code.chars().all(|c| c.is_alphanumeric() || c == '-') {
@@ -73,8 +76,8 @@ pub fn parse(file_name: &str) -> Result<ParsedName, NameProblem> {
     if stamp.is_empty() || !stamp.chars().all(|c| c.is_ascii_digit() || c == '-' || c == '_' || c == 'T' || c == '.') {
         return Err(NameProblem::BadPattern);
     }
-    if kind == Kind::Label && video {
-        // этикетка нужна именно фотографией — с неё читается штрихкод
+    if kind == Kind::Cover && video {
+        // обложка — это фото
         return Err(NameProblem::BadPattern);
     }
     Ok(ParsedName { code: code.to_string(), stamp: stamp.to_string(), kind, video })
@@ -116,8 +119,10 @@ mod tests {
         assert_eq!(p.code, "4680269373655");
         assert_eq!(p.stamp, "20261121-153012");
         assert_eq!(p.kind, Kind::Photo);
+        let l = parse("4680269373655__20261121-153012__COVER.JPG").unwrap();
+        assert_eq!(l.kind, Kind::Cover);
         let l = parse("4680269373655__20261121-153012__LABEL.JPG").unwrap();
-        assert_eq!(l.kind, Kind::Label);
+        assert_eq!(l.kind, Kind::Cover);
         assert_eq!(p.group_key(), l.group_key());
     }
 
@@ -133,8 +138,9 @@ mod tests {
     #[test]
     fn accepts_russian_and_digit_kinds() {
         assert_eq!(parse("123__20261121__товар.jpeg").unwrap().kind, Kind::Photo);
-        assert_eq!(parse("123__20261121__Этикетка.jpg").unwrap().kind, Kind::Label);
-        assert_eq!(parse("123__20261121__2.png").unwrap().kind, Kind::Label);
+        assert_eq!(parse("123__20261121__Этикетка.jpg").unwrap().kind, Kind::Cover);
+        assert_eq!(parse("123__20261121__Обложка.jpg").unwrap().kind, Kind::Cover);
+        assert_eq!(parse("123__20261121__2.png").unwrap().kind, Kind::Cover);
     }
 
     #[test]

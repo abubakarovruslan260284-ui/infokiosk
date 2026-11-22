@@ -1,8 +1,9 @@
 //! Рабочий цикл службы.
 //!
 //! Каждые poll_seconds:
-//!   1) смотрим папку Google Диска: собираем пары «товар + этикетка»;
-//!   2) готовые пары обрабатываем: штрихкод → сверка → 1С → фото карточки;
+//!   1) смотрим папку Google Диска: собираем снимки одного товара
+//!      (ролик + фото обложки; штрихкод — в имени файлов);
+//!   2) готовые обрабатываем: 1С → ролик и обложка карточки;
 //!      брак — в папку _Ошибки со строкой в списке;
 //!   3) понемногу перепроверяем цены/остатки уже сделанных карточек;
 //!   4) если что-то изменилось — публикуем в общую папку киосков.
@@ -15,7 +16,6 @@ use std::time::{Duration, Instant, SystemTime};
 
 use image::{DynamicImage, ImageDecoder, ImageReader};
 
-use crate::barcode;
 use crate::config::Config;
 use crate::names::{self, Kind, NameProblem, ParsedName};
 use crate::onec::{OneC, OneCError};
@@ -35,9 +35,6 @@ pub struct App {
     refresh_queue: Vec<String>,
     next_refresh: Instant,
     onec_down_logged: bool,
-    /// Уже распознанные этикетки (чтобы не распознавать заново, пока 1С
-    /// недоступна и пара ждёт).
-    decoded_cache: HashMap<PathBuf, Vec<String>>,
     ffmpeg_missing_logged: bool,
 }
 
@@ -67,7 +64,6 @@ impl App {
             refresh_queue: Vec::new(),
             next_refresh: Instant::now() + Duration::from_secs(60),
             onec_down_logged: false,
-            decoded_cache: HashMap::new(),
             ffmpeg_missing_logged: false,
         })
     }
@@ -127,72 +123,43 @@ impl App {
                     if is_stable && age >= Duration::from_secs(120) {
                         let reason = match problem {
                             NameProblem::Heic => "снимок в формате HEIC — в быстрой команде должен быть шаг «Конвертировать изображение» в JPEG",
-                            _ => "имя файла не по шаблону <штрихкод>__<дата-время>__photo|label.jpg",
+                            _ => "имя файла не по шаблону <штрихкод>__<дата-время>__video|cover",
                         };
-                        self.reject(&[path], "", &[], reason);
+                        self.reject(&[path], "", reason);
                     }
                 }
             }
         }
         self.seen = new_seen;
-        let seen = &self.seen;
-        self.decoded_cache.retain(|p, _| seen.contains_key(p));
 
         for (_key, files) in groups {
             if !files.iter().all(|(_, p)| stable.get(p).copied().unwrap_or(false)) {
                 continue; // ещё докачивается
             }
             // для товара ролик важнее фото, если прислали и то и другое
-            let photo = files
+            let product = files
                 .iter()
                 .filter(|(n, _)| n.kind == Kind::Photo && n.video)
                 .chain(files.iter().filter(|(n, _)| n.kind == Kind::Photo && !n.video))
                 .map(|(_, p)| p.clone())
                 .next();
-            let label = files.iter().filter(|(n, _)| n.kind == Kind::Label).map(|(_, p)| p.clone()).last();
+            let cover = files.iter().filter(|(n, _)| n.kind == Kind::Cover).map(|(_, p)| p.clone()).last();
             let code = files[0].0.code.clone();
             let all: Vec<PathBuf> = files.iter().map(|(_, p)| p.clone()).collect();
-            match (photo, label) {
-                (Some(photo), Some(label)) => self.process_pair(&code, &photo, &label, &all),
-                _ => {
-                    let oldest = all.iter().filter_map(|p| age_of.get(p)).max().copied().unwrap_or(Duration::ZERO);
-                    if oldest >= Duration::from_secs(self.cfg.orphan_minutes * 60) {
-                        self.reject(&all, &code, &[], "пришёл только один снимок из пары (нужны товар и этикетка)");
-                    }
-                }
+            // Телефон присылает ролик и обложку почти одновременно. Если
+            // пришло что-то одно — ждём вторую часть пару минут, потом
+            // делаем карточку из того, что есть.
+            let oldest = all.iter().filter_map(|p| age_of.get(p)).max().copied().unwrap_or(Duration::ZERO);
+            let complete = product.is_some() && cover.is_some();
+            if complete || oldest >= Duration::from_secs(120) {
+                self.process_item(&code, product.as_deref(), cover.as_deref(), &all);
             }
         }
         Ok(())
     }
 
-    fn process_pair(&mut self, code: &str, photo: &Path, label: &Path, all: &[PathBuf]) {
-        // а) Штрихкод на этикетке
-        let decoded = match self.decoded_cache.get(label) {
-            Some(d) => d.clone(),
-            None => match open_image(label) {
-                Ok(img) => {
-                    let d = barcode::decode_all(&img);
-                    self.decoded_cache.insert(label.to_path_buf(), d.clone());
-                    d
-                }
-                Err(e) => {
-                    self.reject(all, code, &[], &format!("не открывается снимок этикетки: {e}"));
-                    return;
-                }
-            },
-        };
-        let matched = decoded.iter().any(|d| names::codes_match(d, code));
-        if self.cfg.require_label_match && !matched {
-            let reason = if decoded.is_empty() {
-                "штрихкод на снимке этикетки не распознан (переснимите ближе и резче)".to_string()
-            } else {
-                "штрихкод на этикетке не совпадает с кодом в имени файла".to_string()
-            };
-            self.reject(all, code, &decoded, &reason);
-            return;
-        }
-
-        // б) 1С
+    fn process_item(&mut self, code: &str, product: Option<&Path>, cover: Option<&Path>, all: &[PathBuf]) {
+        // а) 1С: название и цена по штрихкоду из имени файла
         let good = match self.onec.get_good(code) {
             Ok(g) => {
                 self.onec_down_logged = false;
@@ -206,49 +173,62 @@ impl App {
                 return; // файлы остаются, попробуем на следующем проходе
             }
             Err(e) => {
-                self.reject(all, code, &decoded, &e.to_string());
+                self.reject(all, code, &e.to_string());
                 return;
             }
         };
 
-        // в) Фото или ролик для карточки
+        // б) Ролик и обложка карточки
         let photo_file = photo_name(code);
         let photos_dir = self.cfg.data().join("photos");
         let dst = photos_dir.join(&photo_file);
-        let is_video = names::parse(&photo.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default())
+        let is_video = product
+            .and_then(|p| p.file_name())
+            .and_then(|n| names::parse(&n.to_string_lossy()).ok())
             .map(|p| p.video)
             .unwrap_or(false);
-        let video_file = if is_video {
-            let vname = video_name(code);
-            let opts = VideoOptions {
-                max_side: self.cfg.video_max_side,
-                seconds: self.cfg.video_seconds,
-                boomerang: self.cfg.video_boomerang,
-            };
-            if let Err(e) = make_card_video(&self.cfg.ffmpeg(), photo, &photos_dir.join(&vname), &dst, &opts) {
-                if e.starts_with("не запускается ffmpeg") {
-                    // не брак снимка, а нет ffmpeg — ждём, файлы не трогаем
-                    if !self.ffmpeg_missing_logged {
-                        self.log(&format!("{e} — положите ffmpeg.exe рядом со службой; ролики подождут"));
-                        self.ffmpeg_missing_logged = true;
+        let video_file = match (product, is_video) {
+            (Some(product), true) => {
+                let vname = video_name(code);
+                let opts = VideoOptions {
+                    max_side: self.cfg.video_max_side,
+                    seconds: self.cfg.video_seconds,
+                    boomerang: self.cfg.video_boomerang,
+                };
+                if let Err(e) = make_card_video(&self.cfg.ffmpeg(), product, &photos_dir.join(&vname), &dst, &opts) {
+                    if e.starts_with("не запускается ffmpeg") {
+                        // не брак снимка, а нет ffmpeg — ждём, файлы не трогаем
+                        if !self.ffmpeg_missing_logged {
+                            self.log(&format!("{e} — положите ffmpeg.exe рядом со службой; ролики подождут"));
+                            self.ffmpeg_missing_logged = true;
+                        }
+                        return;
                     }
+                    self.reject(all, code, &format!("не получается обработать ролик товара: {e}"));
                     return;
                 }
-                self.reject(all, code, &decoded, &format!("не получается обработать ролик товара: {e}"));
-                return;
+                Some(vname)
             }
-            Some(vname)
-        } else {
-            if let Err(e) = make_card_photo(photo, &dst, self.cfg.photo_max_side) {
-                self.reject(all, code, &decoded, &format!("не открывается снимок товара: {e}"));
-                return;
-            }
-            // товар пересняли фото вместо ролика — старый ролик больше не нужен
-            let _ = fs::remove_file(photos_dir.join(video_name(code)));
-            None
+            _ => None,
         };
+        // Обложка: фото обложки, если прислали; иначе снимок товара; у
+        // ролика без обложки остаётся кадр из середины ролика.
+        let still = cover.or(if is_video { None } else { product });
+        if let Some(still) = still {
+            if let Err(e) = make_card_photo(still, &dst, self.cfg.photo_max_side) {
+                if video_file.is_none() {
+                    self.reject(all, code, &format!("не открывается фото обложки: {e}"));
+                    return;
+                }
+                self.log(&format!("{code}: фото обложки не открылось ({e}), обложкой будет кадр из ролика"));
+            }
+        }
+        if video_file.is_none() {
+            // товар пересняли без ролика — старый ролик больше не нужен
+            let _ = fs::remove_file(photos_dir.join(video_name(code)));
+        }
 
-        // г) База
+        // в) База
         let now = now_human();
         let existed = self.store.cards.contains_key(code);
         let card = self.store.cards.entry(code.to_string()).or_insert_with(|| Card {
@@ -272,10 +252,11 @@ impl App {
         card.video = video_file.clone();
         card.updated = now.clone();
         let line = format!(
-            "{} карточка {}{}: {} — {:.2} ₽ по карте{}",
+            "{} карточка {}{}{}: {} — {:.2} ₽ по карте{}",
             if existed { "обновлена" } else { "новая" },
             code,
             if video_file.is_some() { " (ролик)" } else { "" },
+            if cover.is_some() { " (обложка)" } else { "" },
             good.name,
             good.discounted_price,
             match good.stock {
@@ -286,7 +267,7 @@ impl App {
         self.save_store();
         self.dirty = true;
 
-        // д) Исходники — в архив (из Google Диска они уходят)
+        // г) Исходники — в архив (из Google Диска они уходят)
         let month = chrono::Local::now().format("%Y-%m").to_string();
         let arch = self.cfg.data().join("archive").join(month);
         let _ = fs::create_dir_all(&arch);
@@ -299,7 +280,7 @@ impl App {
     }
 
     /// Брак: файлы — в _Ошибки, строка — в «список ошибок.csv».
-    fn reject(&mut self, files: &[PathBuf], code: &str, decoded: &[String], reason: &str) {
+    fn reject(&mut self, files: &[PathBuf], code: &str, reason: &str) {
         let dir = self.cfg.errors_dir();
         if let Err(e) = fs::create_dir_all(&dir) {
             self.log(&format!("не удалось создать {}: {e}", dir.display()));
@@ -320,13 +301,12 @@ impl App {
         if let Ok(mut f) = fs::OpenOptions::new().create(true).append(true).open(&list) {
             if new_file {
                 // BOM, чтобы Excel сразу открыл кириллицу правильно
-                let _ = f.write_all("\u{feff}Дата;Штрихкод в имени;Распознано на этикетке;Причина;Файлы\r\n".as_bytes());
+                let _ = f.write_all("\u{feff}Дата;Штрихкод;Причина;Файлы\r\n".as_bytes());
             }
             let row = format!(
-                "{};{};{};{};{}\r\n",
+                "{};{};{};{}\r\n",
                 now_human(),
                 csv(code),
-                csv(&decoded.join(" ")),
                 csv(reason),
                 csv(&moved.join(" + "))
             );

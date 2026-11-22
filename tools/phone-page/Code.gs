@@ -3,7 +3,7 @@
  *
  * Google Apps Script внутри аккаунта irskom.pr. Страница открывается по
  * ссылке на любом телефоне: сотрудник щёлкает кольцом-сканером по
- * штрихкоду, снимает короткий ролик товара и фото этикетки — файлы
+ * штрихкоду, снимает короткий ролик товара и фото обложки — файлы
  * сохраняются в папку Google Диска «Карточки Товаров» с правильными
  * именами. Дальше их забирает служба карточек на PC-38.
  *
@@ -34,8 +34,8 @@ function doGet(e) {
 }
 
 /**
- * Сохраняет один файл (ролик или фото этикетки) в папку.
- * kind: 'video' | 'label'. Возвращает имя созданного файла.
+ * Сохраняет один файл (ролик или фото обложки) в папку.
+ * kind: 'video' | 'cover'. Возвращает имя созданного файла.
  */
 function saveItem(key, code, stamp, kind, ext, mime, base64) {
   if (ACCESS_KEY && key !== ACCESS_KEY) throw new Error('Нет доступа');
@@ -43,7 +43,7 @@ function saveItem(key, code, stamp, kind, ext, mime, base64) {
   stamp = String(stamp || '').replace(/[^0-9-]/g, '');
   if (!code || code.length > 40) throw new Error('Пустой или неверный штрихкод');
   if (!/^\d{8}-\d{6}$/.test(stamp)) throw new Error('Неверное время');
-  if (kind !== 'video' && kind !== 'label' && kind !== 'photo') throw new Error('Неверный вид файла');
+  if (kind !== 'video' && kind !== 'cover' && kind !== 'label' && kind !== 'photo') throw new Error('Неверный вид файла');
   ext = String(ext || '').toLowerCase().replace(/[^a-z0-9]/g, '');
   var allowed = { jpg: 1, jpeg: 1, mp4: 1, mov: 1, m4v: 1 };
   if (!allowed[ext]) throw new Error('Неподдерживаемый формат: ' + ext);
@@ -68,7 +68,7 @@ function status(key) {
   var it = folder.getFiles();
   while (it.hasNext()) {
     var n = it.next().getName();
-    if (/__(video|label|photo)\.[a-z0-9]+$/i.test(n)) waiting++;
+    if (/__(video|cover|label|photo)\.[a-z0-9]+$/i.test(n)) waiting++;
   }
   var errors = 0;
   var sub = folder.getFoldersByName('_Ошибки');
