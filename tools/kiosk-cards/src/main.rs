@@ -1,9 +1,10 @@
 //! kiosk_cards — служба карточек товаров для инфокиоска.
 //!
-//! Айфон (быстрая команда) → папка Google Диска → эта служба →
+//! Айфон (страница «Карточка товара») → папка Google Диска → эта служба →
 //! 1С (название, цена по карте) → общая папка киосков
-//! (\\wdmycloud\Public\InfoContent): фото card_<код>.jpg + cards.json +
-//! manifest.json. Киоски забирают это как обычный контент.
+//! (\\wdmycloud\Public\InfoContent): ролик card_<код>.mp4, обложка
+//! card_<код>.jpg, cards.json и manifest.json. Киоски забирают это как
+//! обычный контент. В обычном режиме у службы есть значок возле часов.
 //!
 //! Запуск:
 //!   kiosk_cards                 — работать постоянно (обычный режим)
@@ -19,7 +20,10 @@ mod config;
 mod names;
 mod onec;
 mod publish;
+mod status;
 mod store;
+#[cfg(windows)]
+mod tray;
 mod video;
 
 use std::time::Duration;
@@ -112,18 +116,58 @@ fn main() {
             app.tick();
         }
         _ => {
+            #[cfg(windows)]
+            let _instance = match tray::single_instance() {
+                Some(h) => h,
+                None => {
+                    tray::message("Служба карточек уже работает.\n\nЕё значок — возле часов (если не видно, нажмите стрелку ^ рядом с часами).");
+                    return;
+                }
+            };
             app.log(&format!(
                 "=== служба карточек запущена: снимки из «{}», карточки в «{}» ===",
                 app.cfg.inbox_dir, app.cfg.output_dir
             ));
             match video::ffmpeg_version(&app.cfg.ffmpeg()) {
                 Some(v) => app.log(&format!("ролики: {v}")),
-                None => app.log("ВНИМАНИЕ: ffmpeg не найден — ролики обрабатываться не будут (фото — будут). Положите ffmpeg.exe рядом со службой."),
+                None => {
+                    app.log("ВНИМАНИЕ: ffmpeg не найден — ролики обрабатываться не будут (фото — будут). Положите ffmpeg.exe рядом со службой.");
+                    if let Ok(mut s) = app.status.lock() {
+                        s.ffmpeg_ok = false;
+                    }
+                }
             }
-            let poll = Duration::from_secs(app.cfg.poll_seconds.max(5));
-            loop {
+            let status = app.status.clone();
+            let poll_secs = app.cfg.poll_seconds.max(5);
+            #[cfg(windows)]
+            let paths = tray::Paths {
+                log: app.cfg.data().join("kiosk-cards.log"),
+                errors: app.cfg.errors_dir(),
+                output: app.cfg.output(),
+                data: app.cfg.data(),
+            };
+            #[allow(unused_mut)]
+            let mut worker = move || loop {
                 app.tick();
-                std::thread::sleep(poll);
+                // ждём poll_secs, но «Проверить сейчас» из меню будит сразу
+                for _ in 0..poll_secs {
+                    let wake = app.status.lock().map(|mut s| std::mem::take(&mut s.wake)).unwrap_or(false);
+                    if wake {
+                        break;
+                    }
+                    std::thread::sleep(Duration::from_secs(1));
+                }
+            };
+            #[cfg(windows)]
+            {
+                std::thread::spawn(worker);
+                tray::hide_own_console();
+                tray::run(status, paths);
+            }
+            #[cfg(not(windows))]
+            {
+                let _ = status;
+                worker();
             }
         }
     }

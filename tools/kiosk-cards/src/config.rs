@@ -48,6 +48,9 @@ pub struct Config {
     /// true — ролик «туда-обратно» (бесшовное зацикливание, длина ×2).
     #[serde(default)]
     pub video_boomerang: bool,
+    /// Сколько дней хранить исходники с телефона в archive (0 — вечно).
+    #[serde(default = "d_archive")]
+    pub archive_days: u64,
 }
 
 fn d_poll() -> u64 { 20 }
@@ -57,6 +60,7 @@ fn d_side() -> u32 { 1400 }
 fn d_true() -> bool { true }
 fn d_vside() -> u32 { 720 }
 fn d_vsec() -> f64 { 3.0 }
+fn d_archive() -> u64 { 60 }
 
 impl Default for Config {
     fn default() -> Self {
@@ -76,6 +80,7 @@ impl Default for Config {
             video_max_side: d_vside(),
             video_seconds: d_vsec(),
             video_boomerang: false,
+            archive_days: d_archive(),
         }
     }
 }

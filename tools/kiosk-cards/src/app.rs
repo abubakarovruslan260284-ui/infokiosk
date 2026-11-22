@@ -20,6 +20,7 @@ use crate::config::Config;
 use crate::names::{self, Kind, NameProblem, ParsedName};
 use crate::onec::{OneC, OneCError};
 use crate::publish::{self, HashCache};
+use crate::status::{self, Shared};
 use crate::store::{photo_name, video_name, Card, Store};
 use crate::video::{make_card_video, VideoOptions};
 
@@ -36,6 +37,9 @@ pub struct App {
     next_refresh: Instant,
     onec_down_logged: bool,
     ffmpeg_missing_logged: bool,
+    pub status: Shared,
+    output_down_logged: bool,
+    next_archive_cleanup: Instant,
 }
 
 pub fn now_human() -> String {
@@ -65,6 +69,9 @@ impl App {
             next_refresh: Instant::now() + Duration::from_secs(60),
             onec_down_logged: false,
             ffmpeg_missing_logged: false,
+            status: status::new_shared(),
+            output_down_logged: false,
+            next_archive_cleanup: Instant::now() + Duration::from_secs(120),
         })
     }
 
@@ -76,14 +83,76 @@ impl App {
         &self.onec
     }
 
+    fn st(&self, f: impl FnOnce(&mut status::Status)) {
+        if let Ok(mut g) = self.status.lock() {
+            f(&mut g);
+        }
+    }
+
+    fn event(&self, text: &str) {
+        let t = format!("{} {}", chrono::Local::now().format("%H:%M"), text);
+        self.st(|s| s.last_event = t);
+    }
+
     /// Один проход цикла.
     pub fn tick(&mut self) {
         self.process_removals();
-        if let Err(e) = self.scan_inbox() {
-            self.log(&format!("папка снимков недоступна: {e}"));
+        match self.scan_inbox() {
+            Ok(()) => self.st(|s| s.inbox_ok = true),
+            Err(e) => {
+                let was_ok = self.status.lock().map(|s| s.inbox_ok).unwrap_or(true);
+                if was_ok {
+                    self.log(&format!("папка снимков недоступна: {e}"));
+                }
+                self.st(|s| s.inbox_ok = false);
+            }
         }
         self.refresh_some();
         self.publish_if_needed();
+        self.cleanup_archive();
+        let total = self.store.cards.len();
+        let visible = self.store.cards.values().filter(|c| c.visible()).count();
+        let now = chrono::Local::now().format("%H:%M:%S").to_string();
+        self.st(|s| {
+            s.cards_total = total;
+            s.cards_visible = visible;
+            s.last_tick = now;
+        });
+    }
+
+    /// Исходники с телефона после обработки лежат в archive\<год-месяц>.
+    /// Старше archive_days дней — удаляем, чтобы не забивать диск PC-38.
+    fn cleanup_archive(&mut self) {
+        if Instant::now() < self.next_archive_cleanup || self.cfg.archive_days == 0 {
+            return;
+        }
+        self.next_archive_cleanup = Instant::now() + Duration::from_secs(6 * 3600);
+        let limit = Duration::from_secs(self.cfg.archive_days * 86400);
+        let now = SystemTime::now();
+        let mut removed = 0;
+        let Ok(months) = fs::read_dir(self.cfg.data().join("archive")) else { return };
+        for m in months.flatten() {
+            let Ok(files) = fs::read_dir(m.path()) else { continue };
+            let mut left = 0;
+            for f in files.flatten() {
+                let old = f
+                    .metadata()
+                    .and_then(|md| md.modified())
+                    .map(|t| now.duration_since(t).unwrap_or(Duration::ZERO) > limit)
+                    .unwrap_or(false);
+                if old && fs::remove_file(f.path()).is_ok() {
+                    removed += 1;
+                } else {
+                    left += 1;
+                }
+            }
+            if left == 0 {
+                let _ = fs::remove_dir(m.path());
+            }
+        }
+        if removed > 0 {
+            self.log(&format!("архив исходников: удалено старше {} дней — {removed} файлов", self.cfg.archive_days));
+        }
     }
 
     // ---------- 1. Папка снимков ----------
@@ -163,6 +232,7 @@ impl App {
         let good = match self.onec.get_good(code) {
             Ok(g) => {
                 self.onec_down_logged = false;
+                self.st(|s| s.onec_ok = Some(true));
                 g
             }
             Err(OneCError::Unavailable(e)) => {
@@ -170,9 +240,11 @@ impl App {
                     self.log(&format!("1С недоступна, снимки подождут: {e}"));
                     self.onec_down_logged = true;
                 }
+                self.st(|s| s.onec_ok = Some(false));
                 return; // файлы остаются, попробуем на следующем проходе
             }
             Err(e) => {
+                self.st(|s| s.onec_ok = Some(true));
                 self.reject(all, code, &e.to_string());
                 return;
             }
@@ -202,11 +274,13 @@ impl App {
                             self.log(&format!("{e} — положите ffmpeg.exe рядом со службой; ролики подождут"));
                             self.ffmpeg_missing_logged = true;
                         }
+                        self.st(|s| s.ffmpeg_ok = false);
                         return;
                     }
                     self.reject(all, code, &format!("не получается обработать ролик товара: {e}"));
                     return;
                 }
+                self.st(|s| s.ffmpeg_ok = true);
                 Some(vname)
             }
             _ => None,
@@ -277,6 +351,9 @@ impl App {
             }
         }
         self.log(&line);
+        let short = format!("{} карточка {code}: {}", if existed { "обновлена" } else { "новая" }, good.name);
+        self.event(&short);
+        self.st(|s| s.processed += 1);
     }
 
     /// Брак: файлы — в _Ошибки, строка — в «список ошибок.csv».
@@ -312,7 +389,10 @@ impl App {
             );
             let _ = f.write_all(row.as_bytes());
         }
-        self.log(&format!("в _Ошибки: {} — {reason}", if code.is_empty() { moved.join(", ") } else { code.to_string() }));
+        let who = if code.is_empty() { moved.join(", ") } else { code.to_string() };
+        self.log(&format!("в _Ошибки: {who} — {reason}"));
+        self.event(&format!("в _Ошибки: {who} — {reason}"));
+        self.st(|s| s.rejected += 1);
     }
 
     /// Ручное удаление карточек: в рабочей папке службы создать файл
@@ -381,6 +461,8 @@ impl App {
             let now = now_human();
             match self.onec.get_good(&code) {
                 Ok(g) => {
+                    self.st(|s| s.onec_ok = Some(true));
+                    self.onec_down_logged = false;
                     let mut msg = None;
                     if let Some(c) = self.store.cards.get_mut(&code) {
                         if c.apply_good(&g, &now) {
@@ -408,6 +490,7 @@ impl App {
                     }
                 }
                 Err(e) => {
+                    self.st(|s| s.onec_ok = Some(false));
                     // 1С недоступна — отложим весь круг на 5 минут.
                     self.refresh_queue.clear();
                     self.next_refresh = Instant::now() + Duration::from_secs(300);
@@ -433,10 +516,19 @@ impl App {
         let sig = match publish::output_signature(&out) {
             Ok(s) => s,
             Err(e) => {
-                self.log(&format!("общая папка киосков недоступна: {e}"));
+                if !self.output_down_logged {
+                    self.log(&format!("общая папка киосков недоступна: {e}"));
+                    self.output_down_logged = true;
+                }
+                self.st(|s| s.output_ok = false);
                 return;
             }
         };
+        if self.output_down_logged {
+            self.log("общая папка киосков снова доступна");
+            self.output_down_logged = false;
+        }
+        self.st(|s| s.output_ok = true);
         if !self.dirty && self.last_signature.as_deref() == Some(sig.as_str()) {
             return;
         }
@@ -451,7 +543,10 @@ impl App {
                     r.cards, r.files, r.copied, r.removed, r.version
                 ));
             }
-            Err(e) => self.log(&format!("ОШИБКА публикации: {e}")),
+            Err(e) => {
+                self.log(&format!("ОШИБКА публикации: {e}"));
+                self.event(&format!("ошибка публикации: {e}"));
+            }
         }
     }
 
