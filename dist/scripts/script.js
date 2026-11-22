@@ -105,5 +105,5 @@ document.addEventListener("keydown", function (event) {
 });
 
 document.addEventListener("dblclick", () => {
-  window.electronAPI.exitFullscreen();
+  window.electronAPI.toggleWindowMode();
 });

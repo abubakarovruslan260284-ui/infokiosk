@@ -38,6 +38,12 @@
     background:var(--deep);color:#fff;font-size:15px;box-shadow:0 10px 30px rgba(0,0,0,.25);display:none}
   .msg.on{display:block}
   .msg.bad{background:#c62828}
+  .chk{display:none;margin-top:12px;padding:12px 14px;border-radius:12px;font-size:16px;line-height:1.35;font-weight:600}
+  .chk.on{display:block}
+  .chk.wait{background:var(--mist);color:var(--soft)}
+  .chk.ok{background:#e3f6ee;color:#0f7a52}
+  .chk.bad{background:#fdecec;color:#b3261e}
+  .chk .btn{margin-top:10px;font-size:16px;padding:12px}
 </style>
 </head>
 <body>
@@ -63,11 +69,12 @@
     </div>
 
     <div class="step off" id="s3">
-      <h2><i>3</i>Сфотографируйте этикетку</h2>
-      <div class="hint">Штрихкод — крупно и резко, без бликов</div>
-      <label class="btn main" for="label">Снять этикетку</label>
+      <h2><i>3</i>Сфотографируйте штрихкод</h2>
+      <div class="hint">Переверните товар: штрихкод крупно, почти во весь кадр, резко и без бликов. Лицевую сторону не нужно — она уже есть в ролике</div>
+      <label class="btn main" for="label">Снять штрихкод</label>
       <input type="file" id="label" accept="image/*" capture="environment">
       <div class="prev" id="lprev"><img alt=""></div>
+      <div class="chk" id="chk"><span id="chktext"></span><button class="btn ghost" id="usephoto" type="button" hidden></button></div>
     </div>
 
     <div class="step off" id="confirm">
@@ -83,6 +90,10 @@
 
   <div class="msg" id="msg"></div>
 
+<script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"></script>
+<script>
+  if (!window.ZXing) document.write('<script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"><\/script>');
+</script>
 <script>
   var KEY = <?!= JSON.stringify(accessKey) ?>;
   var codeEl = document.getElementById('code');
@@ -118,6 +129,8 @@
     $('vprev').classList.remove('on');
     $('lprev').classList.remove('on');
     $('bigcode').textContent = '';
+    setChk('', '');
+    $('save').textContent = 'Сохранить';
     stepOn('s1', true); stepOn('s2', false); stepOn('s3', false); stepOn('confirm', false);
     window.scrollTo(0, 0);
     codeEl.focus();
@@ -161,17 +174,117 @@
   labelInput.addEventListener('change', function () {
     var f = labelInput.files && labelInput.files[0];
     if (!f) return;
+    stepOn('confirm', false);
     toJpeg(f, 2400).then(function (blob) {
       cur.label = blob;
       $('lprev').querySelector('img').src = URL.createObjectURL(blob);
       $('lprev').classList.add('on');
-      $('bigcode').textContent = cur.code;
-      stepOn('confirm', true);
-      $('confirm').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      setChk('wait', 'Проверяю штрихкод на фото…');
+      return readCodes(blob);
+    }).then(function (found) {
+      labelInput.value = '';
+      if (found === null) {            // распознавалка не загрузилась — проверит PC-38
+        setChk('', '');
+        showConfirm('Сохранить');
+      } else if (!found.length) {
+        setChk('bad', 'Штрихкод на фото не найден. Переверните товар и снимите штрихкод крупно — нажмите «Снять штрихкод» ещё раз.');
+        showConfirm('Сохранить всё равно');
+      } else if (found.some(function (c) { return sameCode(c, cur.code); })) {
+        setChk('ok', '✓ Штрихкод на фото совпал с отсканированным');
+        showConfirm('Сохранить');
+      } else {
+        setChk('bad', 'На фото штрихкод ' + found[0] + ', а кольцом отсканирован ' + cur.code + '. Снимите штрихкод этого товара ещё раз или выберите верный код:', found[0]);
+        stepOn('confirm', false);
+      }
     }).catch(function () {
-      toast('Не удалось открыть фото этикетки — снимите ещё раз', true);
+      labelInput.value = '';
+      toast('Не удалось открыть фото — снимите штрихкод ещё раз', true);
     });
   });
+
+  $('usephoto').addEventListener('click', function () {
+    var c = cleanCode(this.getAttribute('data-code'));
+    if (!c) return;
+    cur.code = c;
+    codeEl.value = c;
+    setChk('ok', '✓ Код взят с фото: ' + c);
+    showConfirm('Сохранить');
+  });
+
+  function showConfirm(saveText) {
+    $('bigcode').textContent = cur.code;
+    $('save').textContent = saveText;
+    stepOn('confirm', true);
+    setTimeout(function () { $('confirm').scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 50);
+  }
+
+  function setChk(kind, text, photoCode) {
+    var el = $('chk');
+    el.className = 'chk' + (kind ? ' on ' + kind : '');
+    $('chktext').textContent = text;
+    var b = $('usephoto');
+    if (photoCode) {
+      b.hidden = false;
+      b.textContent = 'Верный код — с фото: ' + photoCode;
+      b.setAttribute('data-code', photoCode);
+    } else {
+      b.hidden = true;
+    }
+  }
+
+  function sameCode(a, b) {
+    a = String(a).replace(/\D/g, '').replace(/^0+/, '');
+    b = String(b).replace(/\D/g, '').replace(/^0+/, '');
+    return !!a && a === b;
+  }
+
+  // Ищем штрихкод на фото прямо в телефоне (ZXing), чтобы ошибка была
+  // видна сразу, а не потом в папке «_Ошибки». null — проверить нечем.
+  function readCodes(blob) {
+    var Z = window.ZXing;
+    if (!Z || !Z.MultiFormatReader) return Promise.resolve(null);
+    return new Promise(function (resolve) {
+      var img = new Image();
+      img.onload = function () {
+        var F = Z.BarcodeFormat;
+        var hints = new Map();
+        hints.set(Z.DecodeHintType.POSSIBLE_FORMATS, [F.EAN_13, F.EAN_8, F.UPC_A, F.UPC_E, F.CODE_128, F.CODE_39, F.ITF, F.CODABAR]);
+        hints.set(Z.DecodeHintType.TRY_HARDER, true);
+        var reader = new Z.MultiFormatReader();
+        reader.setHints(hints);
+        // размер кадра и поворот: штрихкод часто снимают «стоя»
+        var tries = [[1600, 0], [1600, 90], [2400, 0], [2400, 90], [1000, 0], [1000, 90], [700, 0], [700, 90]];
+        var found = [];
+        (function next(i) {
+          if (i >= tries.length || found.length) { resolve(found); return; }
+          setTimeout(function () {
+            try {
+              var k = Math.min(1, tries[i][0] / Math.max(img.naturalWidth, img.naturalHeight));
+              var w = Math.round(img.naturalWidth * k), h = Math.round(img.naturalHeight * k);
+              var c = document.createElement('canvas');
+              var g = c.getContext('2d');
+              if (tries[i][1]) {
+                c.width = h; c.height = w;
+                g.translate(h, 0);
+                g.rotate(Math.PI / 2);
+              } else {
+                c.width = w; c.height = h;
+              }
+              g.drawImage(img, 0, 0, w, h);
+              var src = new Z.HTMLCanvasElementLuminanceSource(c);
+              var bmp = new Z.BinaryBitmap(new Z.HybridBinarizer(src));
+              var r = reader.decode(bmp);
+              if (r && r.getText()) found.push(r.getText());
+            } catch (e) { /* не нашли на этом размере */ }
+            reader.reset();
+            next(i + 1);
+          }, 30);
+        })(0);
+      };
+      img.onerror = function () { resolve(null); };
+      img.src = URL.createObjectURL(blob);
+    });
+  }
 
   function toJpeg(file, maxSide) {
     return new Promise(function (resolve, reject) {

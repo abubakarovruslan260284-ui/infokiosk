@@ -79,6 +79,7 @@ fn main() {
             read_diagnostics,
             fetch_price,
             exit_fullscreen,
+            toggle_window_mode,
             toggle_devtools,
         ])
         .run(tauri::generate_context!())
@@ -229,6 +230,41 @@ fn fetch_price(url: String, auth_token: String) -> Result<serde_json::Value, Str
 #[tauri::command]
 fn exit_fullscreen(window: tauri::Window) {
     window.set_fullscreen(false).ok();
+}
+
+/// Двойной щелчок по экрану: из полноэкранного режима — в обычное окно
+/// с рамкой (крестик, свернуть, развернуть; окно можно двигать и тянуть
+/// за края), размером 80 % высоты экрана, по центру. Повторный двойной
+/// щелчок по экрану киоска — обратно во весь экран без рамки.
+#[tauri::command]
+fn toggle_window_mode(window: tauri::Window) {
+    let full = window.is_fullscreen().unwrap_or(true);
+    if full {
+        window.set_fullscreen(false).ok();
+        window.unmaximize().ok();
+        window.set_decorations(true).ok();
+        window.set_resizable(true).ok();
+        if let Ok(Some(m)) = window.current_monitor() {
+            let s = m.size();
+            let (sw, sh) = (s.width as f64, s.height as f64);
+            // Экран киоска вертикальный (9:16); окно делаем той же формы.
+            let mut h = sh * 0.8;
+            let mut w = h * 9.0 / 16.0;
+            if w > sw * 0.9 {
+                w = sw * 0.9;
+                h = w * 16.0 / 9.0;
+            }
+            window
+                .set_size(tauri::PhysicalSize::new(w.round() as u32, h.round() as u32))
+                .ok();
+        }
+        window.center().ok();
+        window.set_focus().ok();
+    } else {
+        window.set_decorations(false).ok();
+        window.set_resizable(false).ok();
+        window.set_fullscreen(true).ok();
+    }
 }
 
 #[tauri::command]

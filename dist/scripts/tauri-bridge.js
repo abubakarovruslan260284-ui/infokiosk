@@ -4,7 +4,8 @@
 (function () {
   const invoke = window.__TAURI__.core.invoke;
   window.electronAPI = {
-    exitFullscreen: () => invoke("exit_fullscreen"),
+    exitFullscreen: () => invoke("toggle_window_mode"),
+    toggleWindowMode: () => invoke("toggle_window_mode"),
     saveSettings: (data) => invoke("save_settings_dialog", { data: toRustSettings(data) }),
     persistSettings: (data) => invoke("save_settings", { data: toRustSettings(data) }),
     // Файл настроек хранится в «формате Rust» (content_source_path,
