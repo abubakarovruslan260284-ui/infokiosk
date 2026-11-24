@@ -165,9 +165,15 @@ img{display:block}
    а карусель растягиваем вниз — ролик товара крупнее. На рекламе
    призыв возвращается. На киоске подбора кнопка подбора остаётся. */
 #slider{transition:top .6s ease,left .6s ease,right .6s ease,bottom .6s ease,border-radius .6s ease}
-#cta .lead,#cta .sub,#cta .scanbox{transition:opacity .4s ease}
+#cta .lead,#cta .sub{transition:opacity .4s ease}
 #waiting.card-on #slider{top:1.4vh;left:1.6vw;right:1.6vw;bottom:1.4vh;border-radius:3vw}
-#waiting.card-on #cta .lead,#waiting.card-on #cta .sub,#waiting.card-on #cta .scanbox{opacity:0}
+#waiting.card-on #cta .lead,#waiting.card-on #cta .sub{opacity:0}
+/* живой значок сканера остаётся: внизу справа поверх ролика (цены — слева) */
+#cta .scanbox{transition:width .6s ease,height .6s ease,right .6s ease,bottom .6s ease}
+#waiting.card-on #cta .scanbox{position:absolute;right:5vw;bottom:3.4vh;margin:0;width:24vw;max-width:170px;height:7.5vh;
+  background:rgba(0,0,0,.28);border-color:rgba(255,255,255,.55)}
+#waiting.card-on #cta .bars span{max-width:6px}
+#waiting.picker-mode.card-on #cta .scanbox{bottom:14vh}
 #waiting.picker-mode.card-on #slider{bottom:12vh}
 #cta .picker-btn{transition:bottom .6s ease}
 #waiting.card-on #cta .picker-btn{bottom:2.6vh}
