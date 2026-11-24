@@ -125,28 +125,39 @@ function makeSlide(item) {
       mediaReady = (img.decode ? img.decode() : Promise.resolve()).catch(function () {});
     }
 
-    const info = document.createElement("div");
-    info.className = "cs-info";
+    // Поверх ролика, без подложки: название — одной строкой вверху,
+    // цены — внизу слева, сверху вниз: «без карты» (зачёркнута, мельче),
+    // подпись «Цена по карте ИрсКом» и под ней крупная цена по карте.
+    const top = document.createElement("div");
+    top.className = "cs-top";
     const name = document.createElement("div");
     name.className = "cs-name";
-    // в карусели — только главное из названия, коротко и крупно
-    name.textContent = window.kioskSplitTitle(c.name, "").main;
-    const price = document.createElement("div");
-    price.className = "cs-price";
-    const p = splitPrice(c.discounted_price || c.price);
-    price.innerHTML =
-      '<span class="cs-value"></span><span class="cs-tail"><span class="cs-kop"></span><i>&#8381;</i></span>';
-    price.querySelector(".cs-value").textContent = p.rub;
-    price.querySelector(".cs-kop").textContent = p.kop;
-    const label = document.createElement("div");
-    label.className = "cs-label";
-    label.innerHTML = "Цена по карте<br>ИрсКом";
-    price.appendChild(label);
-    info.appendChild(name);
-    info.appendChild(price);
+    name.textContent = cardTitle(c);
+    top.appendChild(name);
+
+    const bottom = document.createElement("div");
+    bottom.className = "cs-bottom";
+    const cardPrice = Number(c.discounted_price) || Number(c.price) || 0;
+    const retail = Number(c.price) || 0;
+    const p = splitPrice(cardPrice);
+    bottom.innerHTML =
+      '<div class="cs-reg"><span class="cs-reg-lbl">Без карты</span> <s class="cs-reg-val"></s></div>' +
+      '<div class="cs-card-lbl">Цена по карте ИрсКом<b class="cs-pct"></b></div>' +
+      '<div class="cs-price"><span class="cs-value"></span><span class="cs-tail"><span class="cs-kop"></span><i>&#8381;</i></span></div>';
+    bottom.querySelector(".cs-value").textContent = p.rub;
+    bottom.querySelector(".cs-kop").textContent = p.kop;
+    if (retail > cardPrice + 0.004) {
+      const r = splitPrice(retail);
+      bottom.querySelector(".cs-reg-val").textContent = r.rub + "," + r.kop + " \u20bd";
+      const pct = Math.round((1 - cardPrice / retail) * 100);
+      if (pct >= 1) bottom.querySelector(".cs-pct").textContent = "\u2212" + pct + "%";
+    } else {
+      bottom.querySelector(".cs-reg").remove();
+    }
 
     li.appendChild(photo);
-    li.appendChild(info);
+    li.appendChild(top);
+    li.appendChild(bottom);
     ready = mediaReady;
   } else {
     const img = document.createElement("img");
