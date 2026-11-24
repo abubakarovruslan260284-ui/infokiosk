@@ -4,7 +4,8 @@
 //! Windows 7 HEVC не показывают, а слабым процессорам тяжело тянуть
 //! большое видео. Поэтому каждый ролик приводим к одному виду:
 //! H.264 (MP4), без звука, не длиннее video_seconds, по длинной стороне
-//! не больше video_max_side, 25 кадров/с, «быстрый старт» (moov в начале).
+//! не больше video_max_side (без увеличения), до 30 кадров/с, «быстрый
+//! старт» (moov в начале). Качество — video_crf (меньше — лучше).
 //! Поворот из метаданных айфона ffmpeg применяет сам.
 //! Плюс неподвижный кадр (JPEG) — для плитки подборки и как «обложка»,
 //! пока ролик грузится.
@@ -16,6 +17,34 @@ pub struct VideoOptions {
     pub max_side: u32,
     pub seconds: f64,
     pub boomerang: bool,
+    /// Качество x264: 18 — почти без потерь, 23 — обычное, 28 — заметно хуже.
+    pub crf: u32,
+}
+
+/// Размер кадра исходника, как его видит ffmpeg (ширина×высота) — для
+/// журнала: сразу видно, в каком качестве ролик пришёл с телефона.
+pub fn probe_size(ffmpeg: &Path, src: &Path) -> Option<(u32, u32)> {
+    let mut cmd = Command::new(ffmpeg);
+    cmd.args(["-hide_banner", "-i"]).arg(src).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::piped());
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x0800_0000);
+    }
+    let out = cmd.output().ok()?;
+    let err = String::from_utf8_lossy(&out.stderr);
+    for line in err.lines().filter(|l| l.contains("Video:")) {
+        for tok in line.split(|c: char| c == ',' || c == ' ') {
+            if let Some((w, h)) = tok.split_once('x') {
+                if let (Ok(w), Ok(h)) = (w.parse::<u32>(), h.parse::<u32>()) {
+                    if w >= 16 && h >= 16 {
+                        return Some((w, h));
+                    }
+                }
+            }
+        }
+    }
+    None
 }
 
 fn run(ffmpeg: &Path, args: &[String]) -> Result<(), String> {
@@ -51,7 +80,7 @@ pub fn make_card_video(ffmpeg: &Path, src: &Path, dst_mp4: &Path, dst_jpg: &Path
     let side = opt.max_side.max(240);
     // ширина/высота чётные (требование H.264), длинная сторона ≤ side
     let scale = format!("scale='if(gte(iw,ih),min({side},iw),-2)':'if(gte(iw,ih),-2,min({side},ih))':flags=lanczos");
-    let base = format!("{scale},fps=25,format=yuv420p");
+    let base = format!("{scale},fps=30,format=yuv420p");
     let secs = format!("{:.2}", opt.seconds.clamp(1.0, 10.0));
     let tmp_mp4 = dst_mp4.with_extension("tmp.mp4");
     let mut args: Vec<String> = vec!["-hide_banner".into(), "-loglevel".into(), "error".into(), "-y".into()];
@@ -71,11 +100,11 @@ pub fn make_card_video(ffmpeg: &Path, src: &Path, dst_mp4: &Path, dst_jpg: &Path
         "-c:v".into(),
         "libx264".into(),
         "-profile:v".into(),
-        "main".into(),
+        "high".into(),
         "-preset".into(),
         "slow".into(),
         "-crf".into(),
-        "25".into(),
+        opt.crf.clamp(14, 32).to_string(),
         "-movflags".into(),
         "+faststart".into(),
         tmp_mp4.display().to_string(),
@@ -147,7 +176,7 @@ mod tests {
         for boomerang in [false, true] {
             let mp4 = dir.join(format!("card_1_{boomerang}.mp4"));
             let jpg = dir.join(format!("card_1_{boomerang}.jpg"));
-            make_card_video(&ff, &src, &mp4, &jpg, &VideoOptions { max_side: 720, seconds: 3.0, boomerang }).unwrap();
+            make_card_video(&ff, &src, &mp4, &jpg, &VideoOptions { max_side: 720, seconds: 3.0, boomerang, crf: 21 }).unwrap();
             assert!(mp4.metadata().unwrap().len() > 1000);
             let img = image::open(&jpg).unwrap();
             assert_eq!(img.height(), 720, "длинная сторона уменьшена до 720");

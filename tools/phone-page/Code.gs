@@ -80,3 +80,55 @@ function status(key) {
   }
   return { waiting: waiting, errors: errors };
 }
+
+function subfolder_(name, create) {
+  var folder = DriveApp.getFolderById(FOLDER_ID);
+  var it = folder.getFoldersByName(name);
+  if (it.hasNext()) return it.next();
+  return create ? folder.createFolder(name) : null;
+}
+
+/**
+ * Список карточек для раздела «Карточки» на телефоне. Его пишет служба
+ * на PC-38 в «Карточки Товаров/_Карточки/cards.json». pending — карточки,
+ * которые уже попросили удалить, но PC-38 ещё не убрал.
+ */
+function listCards(key) {
+  if (ACCESS_KEY && key !== ACCESS_KEY) throw new Error('Нет доступа');
+  var json = '';
+  var dir = subfolder_('_Карточки', false);
+  if (dir) {
+    var it = dir.getFilesByName('cards.json');
+    var best = null;
+    while (it.hasNext()) {
+      var f = it.next();
+      if (!best || f.getLastUpdated() > best.getLastUpdated()) best = f;
+    }
+    if (best) json = best.getBlob().getDataAsString('UTF-8');
+  }
+  var pending = [];
+  var del = subfolder_('_Удалить', false);
+  if (del) {
+    var fi = del.getFiles();
+    while (fi.hasNext()) {
+      var n = fi.next().getName();
+      if (/\.txt$/i.test(n)) pending.push(n.replace(/\.txt$/i, ''));
+    }
+  }
+  return { json: json, pending: pending };
+}
+
+/** Просьба убрать карточки с киосков: файлы <штрихкод>.txt в «_Удалить». */
+function deleteCards(key, codes) {
+  if (ACCESS_KEY && key !== ACCESS_KEY) throw new Error('Нет доступа');
+  if (!codes || !codes.length || codes.length > 300) throw new Error('Не выбраны карточки');
+  var del = subfolder_('_Удалить', true);
+  var n = 0;
+  for (var i = 0; i < codes.length; i++) {
+    var c = String(codes[i] || '').replace(/[^0-9A-Za-z-]/g, '');
+    if (!c || c.length > 40) continue;
+    del.createFile(c + '.txt', c, MimeType.PLAIN_TEXT);
+    n++;
+  }
+  return n;
+}

@@ -22,7 +22,7 @@ use crate::onec::{OneC, OneCError};
 use crate::publish::{self, HashCache};
 use crate::status::{self, Shared};
 use crate::store::{photo_name, video_name, Card, Store};
-use crate::video::{make_card_video, VideoOptions};
+use crate::video::{make_card_video, probe_size, VideoOptions};
 
 pub struct App {
     pub cfg: Config,
@@ -40,6 +40,11 @@ pub struct App {
     pub status: Shared,
     output_down_logged: bool,
     next_archive_cleanup: Instant,
+    /// Ролики, которые не удалось пересобрать в новом качестве (нет
+    /// исходника в архиве и т.п.) — больше не пытаемся до перезапуска.
+    upgrade_skip: std::collections::HashSet<String>,
+    /// Что последний раз записали в Google Диск для страницы телефона.
+    last_phone_list: u64,
 }
 
 pub fn now_human() -> String {
@@ -72,6 +77,8 @@ impl App {
             status: status::new_shared(),
             output_down_logged: false,
             next_archive_cleanup: Instant::now() + Duration::from_secs(120),
+            upgrade_skip: Default::default(),
+            last_phone_list: 0,
         })
     }
 
@@ -107,8 +114,11 @@ impl App {
                 self.st(|s| s.inbox_ok = false);
             }
         }
+        self.process_phone_deletes();
         self.refresh_some();
+        self.upgrade_video_one();
         self.publish_if_needed();
+        self.write_phone_list();
         self.cleanup_archive();
         let total = self.store.cards.len();
         let visible = self.store.cards.values().filter(|c| c.visible()).count();
@@ -259,14 +269,12 @@ impl App {
             .and_then(|n| names::parse(&n.to_string_lossy()).ok())
             .map(|p| p.video)
             .unwrap_or(false);
+        let mut src_size: Option<(u32, u32)> = None;
         let video_file = match (product, is_video) {
             (Some(product), true) => {
                 let vname = video_name(code);
-                let opts = VideoOptions {
-                    max_side: self.cfg.video_max_side,
-                    seconds: self.cfg.video_seconds,
-                    boomerang: self.cfg.video_boomerang,
-                };
+                let opts = self.video_opts();
+                src_size = probe_size(&self.cfg.ffmpeg(), product);
                 if let Err(e) = make_card_video(&self.cfg.ffmpeg(), product, &photos_dir.join(&vname), &dst, &opts) {
                     if e.starts_with("не запускается ffmpeg") {
                         // не брак снимка, а нет ffmpeg — ждём, файлы не трогаем
@@ -320,16 +328,22 @@ impl App {
             created: now.clone(),
             updated: now.clone(),
             checked: now.clone(),
+            video_side: None,
         });
         card.apply_good(&good, &now);
         card.photo = photo_file;
         card.video = video_file.clone();
+        card.video_side = video_file.as_ref().map(|_| self.cfg.video_max_side);
         card.updated = now.clone();
         let line = format!(
             "{} карточка {}{}{}: {} — {:.2} ₽ по карте{}",
             if existed { "обновлена" } else { "новая" },
             code,
-            if video_file.is_some() { " (ролик)" } else { "" },
+            match (&video_file, src_size) {
+                (Some(_), Some((w, h))) => format!(" (ролик, с телефона пришёл {w}×{h}{})", if w.max(h) < 1280 { " — НИЗКОЕ качество" } else { "" }),
+                (Some(_), None) => " (ролик)".to_string(),
+                _ => String::new(),
+            },
             if cover.is_some() { " (обложка)" } else { "" },
             good.name,
             good.discounted_price,
@@ -354,6 +368,206 @@ impl App {
         let short = format!("{} карточка {code}: {}", if existed { "обновлена" } else { "новая" }, good.name);
         self.event(&short);
         self.st(|s| s.processed += 1);
+    }
+
+    fn video_opts(&self) -> VideoOptions {
+        VideoOptions {
+            max_side: self.cfg.video_max_side,
+            seconds: self.cfg.video_seconds,
+            boomerang: self.cfg.video_boomerang,
+            crf: self.cfg.video_crf,
+        }
+    }
+
+    /// Ролики, сделанные со старыми настройками качества, понемногу (по
+    /// одному за проход) пересобираем из исходников в архиве. Обложку не
+    /// трогаем.
+    fn upgrade_video_one(&mut self) {
+        let want = self.cfg.video_max_side;
+        let Some(code) = self
+            .store
+            .cards
+            .values()
+            .find(|c| c.video.is_some() && c.video_side != Some(want) && !self.upgrade_skip.contains(&c.code))
+            .map(|c| c.code.clone())
+        else {
+            return;
+        };
+        let Some(src) = self.find_archived_video(&code) else {
+            self.upgrade_skip.insert(code.clone());
+            self.log(&format!("{code}: исходника ролика в архиве нет — останется в прежнем качестве (переснимите, если нужно)"));
+            return;
+        };
+        let photos = self.cfg.data().join("photos");
+        let vname = video_name(&code);
+        let tmp_poster = photos.join(format!("{vname}.poster.jpg"));
+        let size = probe_size(&self.cfg.ffmpeg(), &src);
+        match make_card_video(&self.cfg.ffmpeg(), &src, &photos.join(&vname), &tmp_poster, &self.video_opts()) {
+            Ok(()) => {
+                let _ = fs::remove_file(&tmp_poster);
+                if let Some(c) = self.store.cards.get_mut(&code) {
+                    c.video = Some(vname);
+                    c.video_side = Some(want);
+                }
+                self.save_store();
+                self.dirty = true;
+                self.log(&format!(
+                    "{code}: ролик пересобран в новом качестве{}",
+                    size.map(|(w, h)| format!(" (исходник {w}×{h})")).unwrap_or_default()
+                ));
+            }
+            Err(e) => {
+                let _ = fs::remove_file(&tmp_poster);
+                self.upgrade_skip.insert(code.clone());
+                if !e.starts_with("не запускается ffmpeg") {
+                    self.log(&format!("{code}: ролик не пересобран: {e}"));
+                }
+            }
+        }
+    }
+
+    /// Самый свежий исходный ролик товара в archive\<год-месяц>.
+    fn find_archived_video(&self, code: &str) -> Option<PathBuf> {
+        let mut best: Option<(String, PathBuf)> = None;
+        let months = fs::read_dir(self.cfg.data().join("archive")).ok()?;
+        for m in months.flatten() {
+            let Ok(files) = fs::read_dir(m.path()) else { continue };
+            for f in files.flatten() {
+                let name = f.file_name().to_string_lossy().to_string();
+                // unique_path мог дописать « (2)» — сравниваем по началу имени
+                let Ok(p) = names::parse(&name) else { continue };
+                if p.video && p.kind == Kind::Photo && names::codes_match(&p.code, code) {
+                    if best.as_ref().map_or(true, |(st, _)| p.stamp > *st) {
+                        best = Some((p.stamp.clone(), f.path()));
+                    }
+                }
+            }
+        }
+        best.map(|(_, p)| p)
+    }
+
+    // ---------- Страница телефона: список карточек и удаление ----------
+
+    fn phone_dir(&self) -> PathBuf {
+        self.cfg.inbox().join("_Карточки")
+    }
+
+    /// Пишет в Google Диск (папка «Карточки Товаров\_Карточки») список
+    /// карточек с маленькими картинками — его показывает страница
+    /// телефона в разделе «Карточки». Пишем, только если список изменился.
+    fn write_phone_list(&mut self) {
+        let thumbs_dir = self.cfg.data().join("thumbs");
+        let _ = fs::create_dir_all(&thumbs_dir);
+        let photos = self.cfg.data().join("photos");
+        let mut list: Vec<&Card> = self.store.cards.values().collect();
+        list.sort_by(|a, b| b.updated.cmp(&a.updated));
+        let mut items = Vec::new();
+        for c in list {
+            let thumb = thumb_data_url(&photos.join(&c.photo), &thumbs_dir.join(format!("{}.jpg", c.code)));
+            items.push(serde_json::json!({
+                "code": c.code,
+                "name": c.name,
+                "characteristic": c.characteristic,
+                "price": c.price,
+                "discounted_price": c.discounted_price,
+                "visible": c.visible(),
+                "video": c.video.is_some(),
+                "updated": c.updated,
+                "thumb": thumb,
+            }));
+        }
+        let body = serde_json::json!({ "cards": items });
+        let text = body.to_string();
+        let hash = {
+            use std::hash::{Hash, Hasher};
+            let mut h = std::collections::hash_map::DefaultHasher::new();
+            text.hash(&mut h);
+            h.finish()
+        };
+        if hash == self.last_phone_list {
+            return;
+        }
+        let dir = self.phone_dir();
+        if fs::create_dir_all(&dir).is_err() {
+            return; // Google Диска нет — об этом уже говорит значок
+        }
+        let full = serde_json::json!({ "generated": now_human(), "cards": body["cards"] }).to_string();
+        let tmp = dir.join("cards.json.tmp");
+        let dst = dir.join("cards.json");
+        if fs::write(&tmp, full.as_bytes()).is_ok() {
+            // rename поверх существующего: Google Диск обновит тот же файл
+            if fs::rename(&tmp, &dst).is_ok() {
+                self.last_phone_list = hash;
+            }
+        }
+    }
+
+    /// Удаление с телефона: страница кладёт в «Карточки Товаров\_Удалить»
+    /// файлы <штрихкод>.txt. Убираем эти карточки с киосков, файлы-просьбы
+    /// удаляем.
+    fn process_phone_deletes(&mut self) {
+        let dir = self.cfg.inbox().join("_Удалить");
+        let Ok(rd) = fs::read_dir(&dir) else { return };
+        let mut codes = Vec::new();
+        let mut files = Vec::new();
+        for e in rd.flatten() {
+            let path = e.path();
+            if path.extension().map_or(true, |x| !x.eq_ignore_ascii_case("txt")) {
+                continue;
+            }
+            let stem = path.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
+            let text = fs::read_to_string(&path).unwrap_or_default();
+            let mut any = false;
+            for line in text.trim_start_matches('\u{feff}').lines().map(str::trim).filter(|l| !l.is_empty()) {
+                codes.push(line.to_string());
+                any = true;
+            }
+            if !any && !stem.is_empty() {
+                codes.push(stem);
+            }
+            files.push(path);
+        }
+        if files.is_empty() {
+            return;
+        }
+        let (removed, unknown) = self.remove_codes(&codes);
+        for f in &files {
+            let _ = fs::remove_file(f);
+        }
+        if !removed.is_empty() {
+            self.save_store();
+            self.dirty = true;
+            self.event(&format!("удалено с телефона: {}", removed.len()));
+        }
+        self.log(&format!(
+            "удаление с телефона: убрано {}{}{}",
+            removed.len(),
+            if removed.is_empty() { String::new() } else { format!(" ({})", removed.join("; ")) },
+            if unknown.is_empty() { String::new() } else { format!(", не найдены: {}", unknown.join(", ")) }
+        ));
+    }
+
+    /// Убирает карточки по штрихкодам. Возвращает (убранные, не найденные).
+    fn remove_codes(&mut self, codes: &[String]) -> (Vec<String>, Vec<String>) {
+        let mut removed = Vec::new();
+        let mut unknown = Vec::new();
+        for code in codes {
+            let key = self.store.cards.keys().find(|k| names::codes_match(k, code)).cloned();
+            match key {
+                Some(k) => {
+                    if let Some(c) = self.store.cards.remove(&k) {
+                        let _ = fs::remove_file(self.cfg.data().join("photos").join(&c.photo));
+                        if let Some(v) = &c.video {
+                            let _ = fs::remove_file(self.cfg.data().join("photos").join(v));
+                        }
+                        let _ = fs::remove_file(self.cfg.data().join("thumbs").join(format!("{}.jpg", c.code)));
+                        removed.push(format!("{} {}", c.code, c.name));
+                    }
+                }
+                None => unknown.push(code.clone()),
+            }
+        }
+        (removed, unknown)
     }
 
     /// Брак: файлы — в _Ошибки, строка — в «список ошибок.csv».
@@ -402,32 +616,13 @@ impl App {
     fn process_removals(&mut self) {
         let path = self.cfg.data().join("удалить.txt");
         let Ok(text) = fs::read_to_string(&path) else { return };
-        let mut removed = Vec::new();
-        let mut unknown = Vec::new();
-        for line in text.trim_start_matches('\u{feff}').lines() {
-            let code = line.trim();
-            if code.is_empty() {
-                continue;
-            }
-            let key = self
-                .store
-                .cards
-                .keys()
-                .find(|k| names::codes_match(k, code))
-                .cloned();
-            match key {
-                Some(k) => {
-                    if let Some(c) = self.store.cards.remove(&k) {
-                        let _ = fs::remove_file(self.cfg.data().join("photos").join(&c.photo));
-                        if let Some(v) = &c.video {
-                            let _ = fs::remove_file(self.cfg.data().join("photos").join(v));
-                        }
-                        removed.push(format!("{} {}", c.code, c.name));
-                    }
-                }
-                None => unknown.push(code.to_string()),
-            }
-        }
+        let codes: Vec<String> = text
+            .trim_start_matches('\u{feff}')
+            .lines()
+            .map(|l| l.trim().to_string())
+            .filter(|l| !l.is_empty())
+            .collect();
+        let (removed, unknown) = self.remove_codes(&codes);
         let done = self.cfg.data().join(format!("удалить — выполнено {}.txt", chrono::Local::now().format("%Y-%m-%d %H-%M-%S")));
         let _ = fs::rename(&path, &done);
         if !removed.is_empty() {
@@ -611,6 +806,34 @@ fn make_card_photo(src: &Path, dst: &Path, max_side: u32) -> Result<(), String> 
         rgb.write_with_encoder(enc).map_err(|e| e.to_string())?;
     }
     fs::rename(&tmp, dst).map_err(|e| e.to_string())
+}
+
+/// Маленькая картинка для списка на телефоне (data:URL), с кешем в
+/// data\thumbs — чтобы не пережимать каждый раз.
+fn thumb_data_url(photo: &Path, cache: &Path) -> String {
+    use base64::Engine;
+    let fresh = match (fs::metadata(photo).and_then(|m| m.modified()), fs::metadata(cache).and_then(|m| m.modified())) {
+        (Ok(p), Ok(c)) => c >= p,
+        _ => false,
+    };
+    if !fresh {
+        let Ok(img) = open_image(photo) else { return String::new() };
+        let img = img.thumbnail(220, 220).to_rgb8();
+        let tmp = cache.with_extension("tmp");
+        let ok = (|| -> Result<(), String> {
+            let f = fs::File::create(&tmp).map_err(|e| e.to_string())?;
+            let mut w = std::io::BufWriter::new(f);
+            let enc = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut w, 70);
+            img.write_with_encoder(enc).map_err(|e| e.to_string())
+        })();
+        if ok.is_err() || fs::rename(&tmp, cache).is_err() {
+            return String::new();
+        }
+    }
+    match fs::read(cache) {
+        Ok(b) => format!("data:image/jpeg;base64,{}", base64::engine::general_purpose::STANDARD.encode(b)),
+        Err(_) => String::new(),
+    }
 }
 
 /// Перенос файла; между дисками (Google Диск → C:) — копированием.

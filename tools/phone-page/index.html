@@ -6,6 +6,7 @@
 <style>
   :root{--ink:#245491;--deep:#143257;--accent:#e73a7c;--ok:#18a873;--mist:#eef3f9;--line:#dde7f2;--soft:#5b7aa6}
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  [hidden]{display:none!important}
   html,body{margin:0;background:var(--mist);font-family:-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--deep)}
   .top{position:sticky;top:0;z-index:5;display:flex;align-items:center;justify-content:space-between;
     padding:12px 16px;background:#fff;box-shadow:0 2px 10px rgba(20,50,87,.08)}
@@ -38,15 +39,42 @@
     background:var(--deep);color:#fff;font-size:15px;box-shadow:0 10px 30px rgba(0,0,0,.25);display:none}
   .msg.on{display:block}
   .msg.bad{background:#c62828}
+  .tabs{display:flex;gap:6px;background:var(--mist);padding:4px;border-radius:12px}
+  .tab{border:0;background:transparent;color:var(--soft);font-size:15px;font-weight:700;padding:8px 14px;border-radius:9px}
+  .tab.on{background:#fff;color:var(--deep);box-shadow:0 2px 6px rgba(20,50,87,.12)}
+  .vq{margin-top:10px;font-size:14px;font-weight:600;line-height:1.35}
+  .vq.ok{color:var(--ok)} .vq.bad{color:#c62828}
+  .or{display:block;text-align:center;margin:8px 0;color:var(--soft);font-size:13px}
+  #cardsView{padding:12px 12px 120px;max-width:720px;margin:0 auto}
+  .cbar{display:flex;gap:8px;position:sticky;top:62px;z-index:4;background:var(--mist);padding:6px 0}
+  .cbar input{flex:1;font-size:16px;padding:12px;border:2px solid var(--line);border-radius:12px;outline:none;background:#fff}
+  .cbar button{border:0;border-radius:12px;background:#fff;color:var(--ink);font-size:20px;padding:0 14px}
+  .cinfo{font-size:13px;color:var(--soft);margin:6px 2px 10px}
+  .cgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+  .citem{position:relative;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 4px 12px -6px rgba(20,50,87,.3);border:3px solid transparent}
+  .citem.sel{border-color:#c62828}
+  .citem img{display:block;width:100%;aspect-ratio:3/4;object-fit:cover;background:#dfe7f1}
+  .citem .ct{padding:8px 9px 10px}
+  .citem .cn{font-size:13px;font-weight:700;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.5em}
+  .citem .cp{font-size:15px;font-weight:800;color:var(--accent);margin-top:4px}
+  .citem .cc{font-size:11px;color:var(--soft);margin-top:2px}
+  .citem .badge{position:absolute;top:6px;left:6px;font-size:11px;font-weight:700;padding:3px 7px;border-radius:8px;background:rgba(20,50,87,.85);color:#fff}
+  .citem .tick{position:absolute;top:6px;right:6px;width:28px;height:28px;border-radius:50%;background:#c62828;color:#fff;font-weight:900;display:none;align-items:center;justify-content:center}
+  .citem.sel .tick{display:flex}
+  .citem.pend{opacity:.45}
+  .cact{position:fixed;left:0;right:0;bottom:0;z-index:6;background:#fff;padding:12px 16px 18px;box-shadow:0 -6px 18px rgba(20,50,87,.15);display:flex;gap:10px}
+  .btn.del{background:#c62828;color:#fff}
+  .modal{position:fixed;inset:0;z-index:20;background:rgba(10,20,35,.55);display:flex;align-items:center;justify-content:center;padding:20px}
+  .mbox{background:#fff;border-radius:18px;padding:20px;max-width:420px;width:100%;font-size:17px;line-height:1.4}
 </style>
 </head>
 <body>
   <div class="top">
-    <b>Карточка товара</b>
+    <div class="tabs"><button class="tab on" id="tabShoot" type="button">Съёмка</button><button class="tab" id="tabCards" type="button">Карточки</button></div>
     <div class="q" id="queue">готово к съёмке</div>
   </div>
 
-  <main>
+  <main id="shootView">
     <form class="step" id="s1" autocomplete="off">
       <h2><i>1</i>Щёлкните кольцом по штрихкоду</h2>
       <div class="hint">Сначала коснитесь поля, потом сканируйте кольцом</div>
@@ -59,7 +87,11 @@
       <div class="hint">2–3 секунды: медленно обведите товар камерой или поверните его в руке</div>
       <label class="btn main" for="video">Снять ролик</label>
       <input type="file" id="video" accept="video/*" capture="environment">
+      <span class="or">или снимите в приложении «Камера» и</span>
+      <label class="btn ghost" for="videoLib">Выбрать из медиатеки</label>
+      <input type="file" id="videoLib" accept="video/*">
       <div class="prev" id="vprev"><video muted loop playsinline autoplay></video></div>
+      <div class="vq" id="vq"></div>
     </div>
 
     <div class="step off" id="s3">
@@ -80,6 +112,22 @@
       </div>
     </div>
   </main>
+
+  <section id="cardsView" hidden>
+    <div class="cbar"><input id="csearch" type="search" placeholder="Поиск: название или штрихкод" autocomplete="off"><button id="crefresh" type="button" title="Обновить">&#8635;</button></div>
+    <div class="cinfo" id="cinfo">Загружаю…</div>
+    <div class="cgrid" id="cgrid"></div>
+  </section>
+  <div class="cact" id="cact" hidden>
+    <button class="btn del" id="cdel" type="button">Удалить</button>
+    <button class="btn ghost" id="cclear" type="button">Снять выбор</button>
+  </div>
+  <div class="modal" id="modal" hidden>
+    <div class="mbox">
+      <div id="mtext"></div>
+      <div class="row"><button class="btn del" id="mok" type="button">Удалить</button><button class="btn ghost" id="mno" type="button">Отмена</button></div>
+    </div>
+  </div>
 
   <div class="msg" id="msg"></div>
 
@@ -114,6 +162,9 @@
     cur = { code: '', video: null, label: null };
     codeEl.value = '';
     videoInput.value = '';
+    $('videoLib').value = '';
+    $('vq').className = 'vq';
+    $('vq').textContent = '';
     labelInput.value = '';
     $('vprev').classList.remove('on');
     $('lprev').classList.remove('on');
@@ -140,22 +191,39 @@
     codeEl.focus();
   });
 
-  // 2. ролик
-  videoInput.addEventListener('change', function () {
-    var f = videoInput.files && videoInput.files[0];
+  // 2. ролик: снять сразу или выбрать снятый в «Камере» (там качество
+  // выше всего). Под роликом показываем, в каком качестве он пришёл.
+  function onVideo(input) {
+    var f = input.files && input.files[0];
     if (!f) return;
     if (f.size > 40 * 1024 * 1024) {
-      toast('Ролик слишком длинный — снимите 2–3 секунды', true);
-      videoInput.value = '';
+      toast('Ролик слишком большой — снимите 2–3 секунды', true);
+      input.value = '';
       return;
     }
     cur.video = f;
     var v = $('vprev').querySelector('video');
+    $('vq').className = 'vq';
+    $('vq').textContent = '';
+    v.onloadedmetadata = function () {
+      var w = v.videoWidth, h = v.videoHeight, long = Math.max(w, h);
+      if (!long) return;
+      if (long >= 1280) {
+        $('vq').className = 'vq ok';
+        $('vq').textContent = '✓ Качество ролика: ' + w + '×' + h;
+      } else {
+        $('vq').className = 'vq bad';
+        $('vq').textContent = 'Низкое качество: ' + w + '×' + h + '. Снимите ролик в приложении «Камера» и нажмите «Выбрать из медиатеки».';
+      }
+      if (v.duration > 8) $('vq').textContent += ' На киоске будут первые 3 секунды.';
+    };
     v.src = URL.createObjectURL(f);
     $('vprev').classList.add('on');
     stepOn('s3', true);
     $('s3').scrollIntoView({ behavior: 'smooth', block: 'start' });
-  });
+  }
+  videoInput.addEventListener('change', function () { onVideo(videoInput); });
+  $('videoLib').addEventListener('change', function () { onVideo($('videoLib')); });
 
   // 3. обложка: приводим к JPEG и разумному размеру прямо в телефоне
   labelInput.addEventListener('change', function () {
@@ -263,6 +331,124 @@
 
   window.addEventListener('beforeunload', function (e) {
     if (queue.length) { e.preventDefault(); e.returnValue = ''; }
+  });
+
+  // ---------- Раздел «Карточки»: список и удаление ----------
+  var allCards = [];
+  var pending = {};
+  var selected = {};
+  var cardsLoaded = false;
+
+  function showTab(cards) {
+    $('tabShoot').classList.toggle('on', !cards);
+    $('tabCards').classList.toggle('on', cards);
+    $('shootView').hidden = cards;
+    $('cardsView').hidden = !cards;
+    updateAct();
+    window.scrollTo(0, 0);
+    if (cards && !cardsLoaded) loadCards();
+    if (!cards) codeEl.focus();
+  }
+  $('tabShoot').addEventListener('click', function () { showTab(false); });
+  $('tabCards').addEventListener('click', function () { showTab(true); });
+
+  function rub(x) {
+    var v = Number(x) || 0;
+    return v.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + ' ₽';
+  }
+
+  function loadCards() {
+    $('cinfo').textContent = 'Загружаю…';
+    google.script.run
+      .withSuccessHandler(function (r) {
+        cardsLoaded = true;
+        var data = {};
+        try { data = r && r.json ? JSON.parse(r.json) : {}; } catch (e) { data = {}; }
+        allCards = data.cards || [];
+        pending = {};
+        (r && r.pending || []).forEach(function (c) { pending[c] = true; });
+        Object.keys(selected).forEach(function (c) {
+          if (!allCards.some(function (x) { return x.code === c; })) delete selected[c];
+        });
+        $('cinfo').textContent = allCards.length
+          ? 'Карточек: ' + allCards.length + (data.generated ? ' · обновлено ' + data.generated : '') + '. Коснитесь карточки, чтобы выбрать.'
+          : 'Карточек пока нет (или PC-38 ещё не прислал список).';
+        renderCards();
+      })
+      .withFailureHandler(function (e) {
+        $('cinfo').textContent = 'Не удалось загрузить: ' + (e && e.message ? e.message : e);
+      })
+      .listCards(KEY);
+  }
+  $('crefresh').addEventListener('click', loadCards);
+  $('csearch').addEventListener('input', renderCards);
+
+  function renderCards() {
+    var q = $('csearch').value.trim().toLowerCase();
+    var grid = $('cgrid');
+    grid.innerHTML = '';
+    allCards.forEach(function (c) {
+      var hay = (c.name + ' ' + (c.characteristic || '') + ' ' + c.code).toLowerCase();
+      if (q && hay.indexOf(q) < 0) return;
+      var el = document.createElement('div');
+      el.className = 'citem' + (selected[c.code] ? ' sel' : '') + (pending[c.code] ? ' pend' : '');
+      var img = document.createElement('img');
+      img.alt = '';
+      img.loading = 'lazy';
+      if (c.thumb) img.src = c.thumb;
+      el.appendChild(img);
+      var t = document.createElement('div');
+      t.className = 'ct';
+      var n = document.createElement('div'); n.className = 'cn'; n.textContent = c.name; t.appendChild(n);
+      var p = document.createElement('div'); p.className = 'cp'; p.textContent = rub(c.discounted_price || c.price); t.appendChild(p);
+      var cc = document.createElement('div'); cc.className = 'cc'; cc.textContent = c.code + (c.video ? ' · ролик' : ' · фото'); t.appendChild(cc);
+      el.appendChild(t);
+      var badgeText = pending[c.code] ? 'удаляется…' : (c.visible === false ? 'скрыта: нет в наличии' : '');
+      if (badgeText) { var b = document.createElement('div'); b.className = 'badge'; b.textContent = badgeText; el.appendChild(b); }
+      var tick = document.createElement('div'); tick.className = 'tick'; tick.textContent = '✓'; el.appendChild(tick);
+      el.addEventListener('click', function () {
+        if (pending[c.code]) return;
+        if (selected[c.code]) delete selected[c.code]; else selected[c.code] = true;
+        el.classList.toggle('sel', !!selected[c.code]);
+        updateAct();
+      });
+      grid.appendChild(el);
+    });
+    updateAct();
+  }
+
+  function updateAct() {
+    var n = Object.keys(selected).length;
+    $('cact').hidden = $('cardsView').hidden || !n;
+    $('cdel').textContent = 'Удалить (' + n + ')';
+  }
+  $('cclear').addEventListener('click', function () { selected = {}; renderCards(); });
+  $('cdel').addEventListener('click', function () {
+    var codes = Object.keys(selected);
+    if (!codes.length) return;
+    var names = allCards.filter(function (c) { return selected[c.code]; }).map(function (c) { return c.name; });
+    $('mtext').textContent = (codes.length === 1 ? 'Убрать с киосков карточку «' + names[0] + '»?' : 'Убрать с киосков карточки: ' + codes.length + ' шт.?')
+      + (codes.length === 1 ? ' Вернуть её можно, только сняв товар заново.' : ' Вернуть их можно, только сняв товары заново.');
+    $('modal').hidden = false;
+  });
+  $('mno').addEventListener('click', function () { $('modal').hidden = true; });
+  $('mok').addEventListener('click', function () {
+    var codes = Object.keys(selected);
+    $('modal').hidden = true;
+    $('mok').disabled = true;
+    google.script.run
+      .withSuccessHandler(function () {
+        $('mok').disabled = false;
+        codes.forEach(function (c) { pending[c] = true; delete selected[c]; });
+        renderCards();
+        toast('Готово: карточки исчезнут с киосков в течение минуты');
+        setTimeout(function () { if (!$('cardsView').hidden) loadCards(); }, 60000);
+      })
+      .withFailureHandler(function (e) {
+        $('mok').disabled = false;
+        toast('Не удалось удалить: ' + (e && e.message ? e.message : e), true);
+      })
+      .deleteCards(KEY, codes);
   });
 
   reset();

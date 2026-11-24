@@ -51,14 +51,24 @@ pub struct Config {
     /// Сколько дней хранить исходники с телефона в archive (0 — вечно).
     #[serde(default = "d_archive")]
     pub archive_days: u64,
+    /// Качество ролика (x264 CRF): меньше — лучше и тяжелее. 21 — хорошо.
+    #[serde(default = "d_crf")]
+    pub video_crf: u32,
+    /// Версия файла настроек — чтобы новые значения по умолчанию
+    /// доходили и до уже настроенного PC-38.
+    #[serde(default)]
+    pub settings_version: u32,
 }
+
+const SETTINGS_VERSION: u32 = 2;
 
 fn d_poll() -> u64 { 20 }
 fn d_refresh() -> u64 { 60 }
 fn d_orphan() -> u64 { 30 }
 fn d_side() -> u32 { 1400 }
 fn d_true() -> bool { true }
-fn d_vside() -> u32 { 720 }
+fn d_vside() -> u32 { 1920 }
+fn d_crf() -> u32 { 21 }
 fn d_vsec() -> f64 { 3.0 }
 fn d_archive() -> u64 { 60 }
 
@@ -81,6 +91,8 @@ impl Default for Config {
             video_seconds: d_vsec(),
             video_boomerang: false,
             archive_days: d_archive(),
+            video_crf: d_crf(),
+            settings_version: SETTINGS_VERSION,
         }
     }
 }
@@ -102,8 +114,19 @@ impl Config {
             return Ok(None);
         }
         let text = std::fs::read_to_string(path).map_err(|e| format!("не удалось прочитать {}: {e}", path.display()))?;
-        let cfg: Config = serde_json::from_str(text.trim_start_matches('\u{feff}'))
+        let mut cfg: Config = serde_json::from_str(text.trim_start_matches('\u{feff}'))
             .map_err(|e| format!("ошибка в {}: {e}\n(частая причина — одиночная \\ в пути: в этом файле пишите \\\\)", path.display()))?;
+        if cfg.settings_version < SETTINGS_VERSION {
+            // Версия 2: ролики в полном размере экрана киоска (было 720 —
+            // на экране 1080×1920 картинка получалась мыльной).
+            if cfg.video_max_side == 720 {
+                cfg.video_max_side = d_vside();
+            }
+            cfg.settings_version = SETTINGS_VERSION;
+            if let Ok(t) = serde_json::to_string_pretty(&cfg) {
+                let _ = std::fs::write(path, t);
+            }
+        }
         Ok(Some(cfg))
     }
 

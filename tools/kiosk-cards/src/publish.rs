@@ -209,7 +209,7 @@ mod tests {
         Card {
             code: code.into(), name: format!("Товар {code}"), characteristic: "".into(), price: 100.0, discounted_price: 95.0,
             discount_percent: 5.0, stock, group: None, photo: crate::store::photo_name(code), video: None, found_in_1c: true,
-            created: "t".into(), updated: "t".into(), checked: "t".into(),
+            created: "t".into(), updated: "t".into(), checked: "t".into(), video_side: None,
         }
     }
 

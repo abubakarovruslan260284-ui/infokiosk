@@ -35,6 +35,11 @@ pub struct Card {
     pub updated: String,
     #[serde(default)]
     pub checked: String,
+    /// Длинная сторона, с которой перекодирован ролик (video_max_side на
+    /// тот момент). Не совпадает с настройкой — служба пересоберёт ролик
+    /// из исходника в архиве.
+    #[serde(default)]
+    pub video_side: Option<u32>,
 }
 
 fn yes() -> bool {
@@ -165,7 +170,7 @@ mod tests {
         Card {
             code: "1".into(), name: "Кисть".into(), characteristic: "".into(), price: 100.0, discounted_price: 95.0,
             discount_percent: 5.0, stock: None, group: None, photo: "card_1.jpg".into(), video: None, found_in_1c: true,
-            created: "t0".into(), updated: "t0".into(), checked: "t0".into(),
+            created: "t0".into(), updated: "t0".into(), checked: "t0".into(), video_side: None,
         }
     }
 
