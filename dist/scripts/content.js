@@ -141,7 +141,7 @@ function makeSlide(item) {
     const retail = Number(c.price) || 0;
     const p = splitPrice(cardPrice);
     bottom.innerHTML =
-      '<div class="cs-reg"><span class="cs-reg-lbl">Без карты</span> <s class="cs-reg-val"></s></div>' +
+      '<div class="cs-reg"><span class="cs-reg-lbl">Без карты</span> <span class="cs-reg-val"></span></div>' +
       '<div class="cs-card-lbl">Цена по карте ИрсКом<b class="cs-pct"></b></div>' +
       '<div class="cs-price"><span class="cs-value"></span><span class="cs-tail"><span class="cs-kop"></span><i>&#8381;</i></span></div>';
     bottom.querySelector(".cs-value").textContent = p.rub;

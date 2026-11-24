@@ -137,20 +137,30 @@ img{display:block}
    картинкой: служба карточек присылает только фото и данные из 1С,
    поэтому смена цены — это несколько байт в cards.json, а не новая
    картинка. */
-#slider ul li.card-slide{display:block;background:#0b1626}
-#slider ul li.card-slide .cs-photo{position:absolute;inset:0}
+#slider ul li.card-slide{display:block;background:#0b1626;overflow:hidden}
+/* Ролик прижат к верху; свободное место под ним (если ролик шире
+   экрана) — переливающаяся светящаяся полоса, на ней цены. */
+#slider ul li.card-slide::before{content:"";position:absolute;inset:0;z-index:0;
+  background:linear-gradient(115deg,#ff2d55,#ff9500,#ffcc00,#34c759,#00c7be,#007aff,#af52de,#ff2d55);
+  animation:slider-glow-hue var(--glow-speed,6s) linear infinite}
+#slider ul li.card-slide::after{content:"";position:absolute;inset:0;z-index:0;pointer-events:none;
+  box-shadow:inset 0 0 6vh rgba(255,255,255,.35);background:radial-gradient(120% 60% at 50% 100%,rgba(255,255,255,.25),transparent 70%)}
+#slider ul li.card-slide .cs-photo{position:absolute;inset:0;z-index:1}
 #slider ul li.card-slide .cs-photo img,#slider ul li.card-slide .cs-photo video{position:absolute;inset:0;width:100%;height:100%;
-  object-fit:contain;padding:0;filter:none;background:transparent}
+  object-fit:contain;object-position:50% 0;padding:0;filter:none;background:transparent}
 #slider ul li.card-slide.enter .cs-photo img{animation:ken 9s ease-out both}
 /* надписи прямо поверх ролика: без фона, только тень для читаемости */
-.cs-top,.cs-bottom{position:absolute;left:0;right:0;z-index:2;color:#fff;pointer-events:none;
+.cs-top,.cs-bottom{position:absolute;left:0;right:0;z-index:3;color:#fff;pointer-events:none;
   text-shadow:0 0 .5vh rgba(0,0,0,.9),0 .25vh 1.4vh rgba(0,0,0,.75)}
 .cs-top{top:0;padding:2.2vh 4.5vw 0}
 .cs-name{font-family:var(--f);font-weight:800;font-size:3.1vh;line-height:1.2;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cs-bottom{bottom:0;padding:0 4.5vw 2.6vh;display:flex;flex-direction:column;align-items:flex-start;gap:.3vh}
 .cs-reg{font-family:var(--fb);font-weight:600;font-size:2.4vh;line-height:1.2;color:rgba(255,255,255,.9)}
-.cs-reg s{text-decoration-color:#ff4f8f;text-decoration-thickness:.32vh}
+/* старая цена перечёркнута по диагонали — цифры остаются читаемыми */
+.cs-reg-val{position:relative;display:inline-block;padding:0 .2em}
+.cs-reg-val::after{content:"";position:absolute;left:0;right:0;top:50%;height:.32vh;margin-top:-.16vh;
+  background:#ff3b7f;border-radius:.2vh;box-shadow:0 0 .4vh rgba(0,0,0,.6);transform:rotate(-13deg)}
 .cs-card-lbl{margin-top:.6vh;font-family:var(--f);font-weight:800;font-size:1.9vh;letter-spacing:.08em;
   text-transform:uppercase;color:#fff}
 .cs-pct{margin-left:1.6vw;color:#ff5d97;letter-spacing:0}
