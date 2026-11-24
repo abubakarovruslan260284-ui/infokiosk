@@ -1,0 +1,7 @@
+run=44
+status=success
+sha=57733b3772ce4e1ac8159f69532b297ece7d46b8
+time=2026-11-24T18:26:02.4989684Z
+release=https://github.com/abubakarovruslan260284-ui/infokiosk/releases/tag/build-44
+installer=Infokiosk-Setup-x64.exe 156940777
+cards_zip=KioskCards-PC38.zip 71396055
